@@ -47,11 +47,8 @@ logs/
 !.env.example
 
 ### Spring config ###
-src/main/resources/application.yml
 src/main/resources/application-secret.yml
-src/main/resources/application-prod.yml
 src/main/resources/application-local.yml
-src/main/resources/application-dev.yml
 src/main/resources/application.properties.bak
 
 ### Java / Package ###
@@ -59,6 +56,11 @@ src/main/resources/application.properties.bak
 *.jar
 *.war
 *.ear
+
+### Upload / runtime files ###
+file_repo/
+uploads/
+tmp/
 
 ### Generated ###
 generated/

@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: DDEONAM_be
+
+  thymeleaf:
+    cache: false
+
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+
+  main:
+    banner-mode: console
+
+server:
+  port: 8090
+
+logging:
+  level:
+    org.springframework.security.web: trace
+    com.gorani.ddeonam: debug
+    org.hibernate.SQL: debug
+    org.hibernate.orm.jdbc.bind: trace
+

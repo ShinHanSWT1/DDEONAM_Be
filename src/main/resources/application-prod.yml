@@ -1,0 +1,31 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url:  ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 30MB
+      location: /app/uploads
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+#  data:
+#    redis:
+#      host: prod-redis
+#      port: 6379
+
+app:
+  upload:
+    path: /app/uploads
