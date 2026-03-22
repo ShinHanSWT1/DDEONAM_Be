@@ -1,5 +1,3 @@
-#git commit -m "chore: gitignore 파일 수정 및 dockerfile/dockerignore 추가"
-
 ## Build Stage ##
 FROM eclipse-temurin:17-jdk AS builder
 
