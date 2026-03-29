@@ -1,5 +1,5 @@
 ## Build Stage ##
-FROM eclipse-temurin:17-jdk AS builder
+FROM docker.io/library/eclipse-temurin:17-jdk AS builder
 
 WORKDIR /app
 
