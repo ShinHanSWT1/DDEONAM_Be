@@ -19,7 +19,7 @@ RUN chmod +x ./gradlew
 RUN ./gradlew clean bootJar -x test
 
 ## Run Stage ##
-FROM eclipse-temurin:17-jre
+FROM docker.io/library/eclipse-temurin:17-jre
 
 WORKDIR /app
 
