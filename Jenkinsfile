@@ -57,7 +57,7 @@ pipeline {
                                     sudo podman pod exists gorani-pod || sudo podman pod create --name gorani-pod -p 8090:8090 -p 5432:5432
 
                                     if ! sudo podman ps -a --format "{{.Names}}" | grep -q "^dev-db$"; then
-                                        sudo podman run -d --name db --pod gorani-pod \
+                                        sudo podman run -d --name dev-db --pod gorani-pod \
                                         -e POSTGRES_DB=ddeonam_dev \
                                         -e POSTGRES_USER=postgres \
                                         -e POSTGRES_PASSWORD=gorani \
