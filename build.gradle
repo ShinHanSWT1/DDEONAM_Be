@@ -6,7 +6,7 @@ plugins {
 
 group = 'com.gorani'
 version = '0.0.1-SNAPSHOT'
-description = 'DDEONAM_be'
+description = 'EcoDrive_be'
 
 java {
     toolchain {

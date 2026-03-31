@@ -1,4 +1,4 @@
-package com.gorani.ddeonam.config;
+package com.gorani.ecodrive.config;
 
 
 import org.springframework.context.annotation.Bean;

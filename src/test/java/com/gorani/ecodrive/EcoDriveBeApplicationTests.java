@@ -1,10 +1,10 @@
-package com.gorani.ddeonam;
+package com.gorani.ecodrive;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class DdeonamBeApplicationTests {
+class EcoDriveBeApplicationTests {
 
     @Test
     void contextLoads() {
