@@ -1,4 +1,4 @@
-package com.gorani.ecodrive.config;
+package com.gorani.ecodrive.common.config;
 
 
 import org.springframework.context.annotation.Bean;
