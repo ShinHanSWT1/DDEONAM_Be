@@ -1,6 +1,6 @@
 spring:
   application:
-    name: EcoDrvie
+    name: EcoDrive
 
   jpa:
     open-in-view: false

@@ -14,6 +14,9 @@ public record OAuthAttributes(
     @SuppressWarnings("unchecked")
     public static OAuthAttributes ofKakao(Map<String, Object> attributes) {
         String providerId = String.valueOf(attributes.get("id"));
+        if(providerId == null){
+            throw new IllegalArgumentException("kakao user id is required");
+        }
 
         Map<String, Object> kakaoAccount = (Map<String, Object>) attributes.get("kakao_account");
         Map<String, Object> properties = (Map<String, Object>) attributes.get("properties");
