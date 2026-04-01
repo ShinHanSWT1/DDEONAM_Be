@@ -1,13 +1,13 @@
-package com.gorani.ddeonam;
+package com.gorani.ecodrive;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class DdeonamBeApplication {
+public class EcoDriveBeApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(DdeonamBeApplication.class, args);
+        SpringApplication.run(EcoDriveBeApplication.class, args);
     }
 
 }

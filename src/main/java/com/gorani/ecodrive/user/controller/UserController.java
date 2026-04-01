@@ -1,0 +1,41 @@
+package com.gorani.ecodrive.user.controller;
+
+import com.gorani.ecodrive.common.response.ApiResponse;
+import com.gorani.ecodrive.common.security.CustomUserPrincipal;
+import com.gorani.ecodrive.user.domain.User;
+import com.gorani.ecodrive.user.service.UserService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequiredArgsConstructor
+public class UserController {
+
+    private final UserService userService;
+
+    @GetMapping("/api/users/me")
+    public ApiResponse<UserMeResponse> getMyInfo(
+            @AuthenticationPrincipal CustomUserPrincipal principal
+    ) {
+        User user = userService.getById(principal.getUserId());
+
+        return ApiResponse.success("내 정보 조회 성공", new UserMeResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getNickname(),
+                user.getProfileImageUrl(),
+                user.getRole().name()
+        ));
+    }
+
+    public record UserMeResponse(
+            Long id,
+            String email,
+            String nickname,
+            String profileImageUrl,
+            String role
+    ) {
+    }
+}

@@ -1,4 +1,4 @@
-package com.gorani.ddeonam.sample.controller;
+package com.gorani.ecodrive.sample.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
