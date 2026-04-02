@@ -81,8 +81,8 @@ pipeline {
                         string(credentialsId: 'redis-password-dev', variable: 'REDIS_PASSWORD'),
                         string(credentialsId: 'jwt-secret-dev', variable: 'JWT_SECRET'),
                         string(credentialsId: 'kakao-client-id-dev', variable: 'KAKAO_CLIENT_ID'),
-                        string(credentialsId: 'kakao-client-secret-dev', variable: 'KAKAO_CLIENT_SECRET')
-                        string(credentialsId: 'aws-s3-access-key', variable: 'AWS_ACCESS_KEY')
+                        string(credentialsId: 'kakao-client-secret-dev', variable: 'KAKAO_CLIENT_SECRET'),
+                        string(credentialsId: 'aws-s3-access-key', variable: 'AWS_ACCESS_KEY'),
                         string(credentialsId: 'aws-s3-secret-key', variable: 'AWS_SECRET_KEY')
                     ]) {
                         script {
