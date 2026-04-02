@@ -10,6 +10,12 @@ spring:
       max-request-size: 30MB
       location: /app/uploads
 
+  security:
+    oauth2:
+      client:
+        registration:
+          kakao:
+            redirect-uri: "https://dev-gorani.lab.terminal-lab.kr/api/login/oauth2/code/kakao"
   jpa:
     hibernate:
       ddl-auto: validate
