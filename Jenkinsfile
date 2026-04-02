@@ -27,7 +27,7 @@ pipeline {
         REDIS_HOST = "localhost"
         REDIS_PORT = "6379"
 
-        FRONTEND_URL = "http://dev-gorani.lab.terminal-lab.kr/"
+        FRONTEND_URL = "https://dev-gorani.lab.terminal-lab.kr/"
 
         FULL_IMAGE_TAG = "${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:${BUILD_NUMBER}"
         LATEST_IMAGE_TAG = "${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:latest"
