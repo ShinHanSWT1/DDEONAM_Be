@@ -87,7 +87,7 @@ pipeline {
                                 ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_SERVER} << EOF
                                     sudo podman login ${REGISTRY} -u "${USER}" -p "${PASS}" --tls-verify=false
 
-                                    sudo podman rm -f backend || true
+                                    sudo podman rm -f ${CONTAINER_NAME} || true
                                     sudo podman pull ${FULL_IMAGE_TAG} --tls-verify=false
 
                                     sudo podman run -d --name ${CONTAINER_NAME} \
