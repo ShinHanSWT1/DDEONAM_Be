@@ -32,6 +32,7 @@ pipeline {
         FULL_IMAGE_TAG = "${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:${BUILD_NUMBER}"
         LATEST_IMAGE_TAG = "${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:latest"
 
+        AWS_BUCKET_NAME = "eecodrive"
     }
 
     stages {
@@ -81,6 +82,8 @@ pipeline {
                         string(credentialsId: 'jwt-secret-dev', variable: 'JWT_SECRET'),
                         string(credentialsId: 'kakao-client-id-dev', variable: 'KAKAO_CLIENT_ID'),
                         string(credentialsId: 'kakao-client-secret-dev', variable: 'KAKAO_CLIENT_SECRET')
+                        string(credentialsId: 'aws-s3-access-key', variable: 'AWS_ACCESS_KEY')
+                        string(credentialsId: 'aws-s3-secret-key', variable: 'AWS_SECRET_KEY')
                     ]) {
                         script {
                             sh '''
@@ -107,6 +110,9 @@ pipeline {
                                         -e KAKAO_CLIENT_ID="$KAKAO_CLIENT_ID" \
                                         -e KAKAO_CLIENT_SECRET="$KAKAO_CLIENT_SECRET" \
                                         -e FRONTEND_URL=${FRONTEND_URL} \
+                                        -e AWS_ACCESS_KEY="$AWS_ACCESS_KEY" \
+                                        -e AWS_SECRET_KEY="$AWS_SECRET_KEY" \
+                                        -e AWS_BUCKET_NAME=${AWS_BUCKET_NAME} \
                                         ${FULL_IMAGE_TAG}
 
                                     sudo podman image prune -f
