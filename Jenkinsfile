@@ -106,7 +106,7 @@ pipeline {
                                         -e JWT_SECRET="$JWT_SECRET" \
                                         -e KAKAO_CLIENT_ID="$KAKAO_CLIENT_ID" \
                                         -e KAKAO_CLIENT_SECRET="$KAKAO_CLIENT_SECRET" \
-                                        -e FRONTEND_URL = ${FRONTEND_URL} \
+                                        -e FRONTEND_URL=${FRONTEND_URL} \
                                         ${FULL_IMAGE_TAG}
 
                                     sudo podman image prune -f
