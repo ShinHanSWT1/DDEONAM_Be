@@ -1,6 +1,19 @@
+server:
+  port: 8081
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: 3600000
+
 spring:
   application:
     name: EcoDrive
+
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   jpa:
     open-in-view: false
@@ -36,16 +49,6 @@ spring:
   main:
     banner-mode: console
 
-jwt:
-  secret: ${JWT_SECRET}
-  access-token-expiration: 3600000
-
-app:
-  frontend-url: http://localhost:3000
-
-server:
-  port: 8081
-
 logging:
   level:
     org.springframework.security.web: trace
@@ -53,3 +56,5 @@ logging:
     org.hibernate.SQL: debug
     org.hibernate.orm.jdbc.bind: trace
 
+app:
+  frontend-url: ${FRONTEND_URL}

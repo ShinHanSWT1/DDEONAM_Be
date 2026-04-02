@@ -3,12 +3,6 @@ spring:
     activate:
       on-profile: dev
 
-  datasource:
-    driver-class-name: org.postgresql.Driver
-    url:  ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
-
   servlet:
     multipart:
       enabled: true
@@ -21,11 +15,12 @@ spring:
       ddl-auto: validate
     show-sql: true
 
-#  data:
-#    redis:
-#      host: dev-redis
-#      port: 6379
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
 app:
   upload:
     path: /app/uploads
+#  frontend-url: https://dev-gorani.lab.terminal-lab.kr/

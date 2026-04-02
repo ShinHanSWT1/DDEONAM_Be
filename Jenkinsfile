@@ -1,35 +1,57 @@
 pipeline {
     agent any
 
-    environment { 
-        REGISTRY = "registry-gorani.lab.terminal-lab.kr" 
-        HARBOR_CREDENTIALS_ID = "harbor-auth" 
-        PROJECT_NAME = "gorani" 
+    environment {
+        REGISTRY = "registry-gorani.lab.terminal-lab.kr"
+        HARBOR_CREDENTIALS_ID = "harbor-auth"
+
+        GIT_URL = "https://github.com/ShinHanSWT1/EcoDrive_be.git"
+        GIT_BRANCH = "dev"
+
+        PROJECT_NAME = "gorani"
         IMAGE_NAME = "backend"
-        DEV_SERVER = "10.0.1.79"
+
+        REMOTE_SERVER = "10.0.1.79"
         REMOTE_USER = "rocky"
+        REMOTE_POD_NAME = "gorani-dev-pod"
+        CONTAINER_NAME = "dev-back"
+
+        SPRING_PROFILE = "dev"
+
+        DB_URL = "jdbc:postgresql://localhost:5432/ecodrive_dev"
+        DB_HOST = "localhost"
+        DB_NAME = "ecodrive_dev"
+        DB_USERNAME = "postgres"
+        DB_PORT = "5432"
+
+        REDIS_HOST = "localhost"
+        REDIS_PORT = "6379"
+
+        FRONTEND_URL = "http://dev-gorani.lab.terminal-lab.kr/"
+
         FULL_IMAGE_TAG = "${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:${BUILD_NUMBER}"
-        
+        LATEST_IMAGE_TAG = "${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:latest"
+
     }
 
     stages {
         stage('1. Checkout') {
-            steps { 
-                git branch: 'master', url: 'https://github.com/ShinHanSWT1/DDEONAM_Be.git'
+            steps {
+                git branch: "${GIT_BRANCH}", url: "${GIT_URL}"
             }
         }
 
         stage('2. Build Image') {
             steps {
-                script { 
-                    sh "podman build -t ${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:${BUILD_NUMBER} ." 
+                script {
+                    sh "podman build -t ${FULL_IMAGE_TAG} ."
                     sh "podman tag ${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:${BUILD_NUMBER} ${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:latest"
                 }
             }
         }
 
         stage('3. Push to Harbor') {
-            steps { 
+            steps {
                 withCredentials([usernamePassword(credentialsId: HARBOR_CREDENTIALS_ID, usernameVariable: 'USER', passwordVariable: 'PASS')]) {
                     sh "podman login ${REGISTRY} -u ${USER} -p ${PASS}"
                     sh "podman push ${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:${BUILD_NUMBER} --tls-verify=false"
@@ -39,52 +61,54 @@ pipeline {
         }
 
         stage('4. Cleanup') {
-            steps { 
+            steps {
                 sh "podman rmi ${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:${BUILD_NUMBER}"
                 sh "podman rmi ${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:latest"
             }
         }
-        
+
         stage('5. Deploy Dev') {
             steps {
                 sshagent(['dev-server-ssh']) {
-                    withCredentials([usernamePassword(credentialsId: HARBOR_CREDENTIALS_ID, usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                        script { 
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: HARBOR_CREDENTIALS_ID,
+                            usernameVariable: 'USER',
+                            passwordVariable: 'PASS'
+                        ),
+                        string(credentialsId: 'db-password-dev', variable: 'DB_PASSWORD'),
+                        string(credentialsId: 'redis-password-dev', variable: 'REDIS_PASSWORD'),
+                        string(credentialsId: 'jwt-secret-dev', variable: 'JWT_SECRET'),
+                        string(credentialsId: 'kakao-client-id-dev', variable: 'KAKAO_CLIENT_ID'),
+                        string(credentialsId: 'kakao-client-secret-dev', variable: 'KAKAO_CLIENT_SECRET')
+                    ]) {
+                        script {
                             sh '''
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEV_SERVER} << EOF 
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_SERVER} << EOF
                                     sudo podman login ${REGISTRY} -u "${USER}" -p "${PASS}" --tls-verify=false
-
-                                    sudo podman pod exists gorani-pod || sudo podman pod create --name gorani-pod -p 8090:8090 -p 5432:5432
-
-                                    if ! sudo podman ps -a --format "{{.Names}}" | grep -q "^dev-db$"; then
-                                        sudo podman run -d --name dev-db --pod gorani-pod \
-                                        -e POSTGRES_DB=ddeonam_dev \
-                                        -e POSTGRES_USER=postgres \
-                                        -e POSTGRES_PASSWORD=gorani \
-                                        docker.io/library/postgres:15
-                                    fi
-
-                                    if ! sudo podman ps -a --format "{{.Names}}" | grep -q "^dev-nginx$"; then
-                                        sudo podman run -d --name dev-nginx --pod gorani-pod \
-                                        -v /home/gorani/dev/nginx/nginx.conf:/etc/nginx/nginx.conf:Z \
-                                        docker.io/library/nginx:latest
-                                    fi
 
                                     sudo podman rm -f backend || true
                                     sudo podman pull ${FULL_IMAGE_TAG} --tls-verify=false
-                                    
-                                    sudo podman run -d --name backend \
-                                        --pod gorani-pod \
+
+                                    sudo podman run -d --name ${CONTAINER_NAME} \
+                                        --pod ${REMOTE_POD_NAME} \
                                         --restart always \
-                                        -e SPRING_PROFILES_ACTIVE=dev \
-                                        -e DB_URL=jdbc:postgresql://localhost:5432/ddeonam_dev \
-                                        -e DB_HOST=localhost \
-                                        -e DB_PORT=5432 \
-                                        -e DB_NAME=ddeonam_dev \
-                                        -e DB_USERNAME=postgres \
-                                        -e DB_PASSWORD=gorani \
+                                        -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \
+                                        -e DB_URL=${DB_URL} \
+                                        -e DB_HOST=${DB_HOST} \
+                                        -e DB_PORT=${DB_PORT} \
+                                        -e DB_NAME=${DB_NAME} \
+                                        -e DB_USERNAME=${DB_USERNAME} \
+                                        -e DB_PASSWORD="$DB_PASSWORD" \
+                                        -e REDIS_HOST=${REDIS_HOST} \
+                                        -e REDIS_PORT=${REDIS_PORT} \
+                                        -e REDIS_PASSWORD="$REDIS_PASSWORD" \
+                                        -e JWT_SECRET="$JWT_SECRET" \
+                                        -e KAKAO_CLIENT_ID="$KAKAO_CLIENT_ID" \
+                                        -e KAKAO_CLIENT_SECRET="$KAKAO_CLIENT_SECRET" \
+                                        -e FRONTEND_URL = ${FRONTEND_URL} \
                                         ${FULL_IMAGE_TAG}
-                                        
+
                                     sudo podman image prune -f
 EOF
                             '''

@@ -29,6 +29,6 @@ RUN mkdir -p /app/uploads
 # builder stage에서 jar 복사
 COPY --from=builder /app/build/libs/*.jar app.jar
 
-EXPOSE 8090
+EXPOSE 8081
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
