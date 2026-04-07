@@ -57,8 +57,8 @@ logging:
     org.hibernate.orm.jdbc.bind: trace
 
 app:
-  frontend-url: ${FRONTEND_URL}
-  cdn-url: https://${AWS_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  cdn-url: https://${cloud.aws.s3.bucket}.s3.${cloud.aws.region.static}.amazonaws.com
 
 cloud:
   aws:

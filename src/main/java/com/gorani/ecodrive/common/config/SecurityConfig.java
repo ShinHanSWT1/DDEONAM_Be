@@ -50,10 +50,7 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(request -> {
                     CorsConfiguration config = new CorsConfiguration();
-                    config.setAllowedOrigins(List.of(
-                            "http://localhost:3000",
-                            "https://dev-gorani.lab.terminal-lab.kr"
-                    ));
+                    config.setAllowedOrigins(List.of("http://localhost:3000"));
                     config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
                     config.setAllowedHeaders(List.of("*"));
                     config.setAllowCredentials(true);
@@ -68,11 +65,11 @@ public class SecurityConfig {
                         .requestMatchers("/", "/error").permitAll()
                         .requestMatchers("/api/oauth2/**", "/api/login/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
-                        .requestMatchers("/api/users/me").authenticated()
-                        .anyRequest().permitAll()
+                        .requestMatchers("/api/users/me", "/api/users/me/**").authenticated()
+                        .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth -> oauth
-                        .authorizationEndpoint(auth -> auth
+                        .authorizationEndpoint(authorization -> authorization
                                 .baseUri("/api/oauth2/authorization")
                         )
                         .redirectionEndpoint(redirection -> redirection
