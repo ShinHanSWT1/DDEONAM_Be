@@ -37,7 +37,7 @@ public class UserService {
     @Transactional
     public String uploadProfileImage(Long userId, MultipartFile file) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         String imageUrl = s3Service.upload(file, "users/profile");
 

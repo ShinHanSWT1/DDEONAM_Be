@@ -58,7 +58,7 @@ logging:
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
-  cdn-url: https://${AWS_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com
+  cdn-url: https://${cloud.aws.s3.bucket}.s3.${cloud.aws.region.static}.amazonaws.com
 
 cloud:
   aws:

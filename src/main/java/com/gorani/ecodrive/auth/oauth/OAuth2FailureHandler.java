@@ -26,9 +26,9 @@ public class OAuth2FailureHandler implements AuthenticationFailureHandler {
             AuthenticationException exception
     ) throws IOException, ServletException {
 
-        log.error("OAuth2 login failed. requestURI={}, queryString={}, message={}",
+        log.error("OAuth2 login failed. requestURI={}, oauthError={}, message={}",
                 request.getRequestURI(),
-                request.getQueryString(),
+                request.getParameter("error"),
                 exception.getMessage(),
                 exception);
 

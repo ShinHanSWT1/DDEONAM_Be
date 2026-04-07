@@ -6,10 +6,8 @@ import com.gorani.ecodrive.user.domain.User;
 import com.gorani.ecodrive.user.service.OnboardingService;
 import com.gorani.ecodrive.user.service.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequiredArgsConstructor
@@ -77,12 +75,12 @@ public class UserController {
         );
     }
 
-    @PostMapping("/{userId}/profile-image")
-    public ResponseEntity<String> uploadProfileImage(
-            @PathVariable Long userId,
-            @RequestPart("file") MultipartFile file
-    ) {
-        String imageUrl = userService.uploadProfileImage(userId, file);
-        return ResponseEntity.ok(imageUrl);
-    }
+//    @PostMapping("/{userId}/profile-image")
+//    public ResponseEntity<String> uploadProfileImage(
+//            @PathVariable Long userId,
+//            @RequestPart("file") MultipartFile file
+//    ) {
+//        String imageUrl = userService.uploadProfileImage(userId, file);
+//        return ResponseEntity.ok(imageUrl);
+//    }
 }
