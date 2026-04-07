@@ -6,6 +6,7 @@ import com.gorani.ecodrive.insurance.service.InsuranceProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -49,9 +50,18 @@ public class InsuranceProductController {
         ));
     }
 
-    public record ProductResponse(Long id, Long insuranceCompanyId, String companyName, String
-    productName, Integer baseAmount, String status) {}
+    @GetMapping("/products/{productId}/discount-policies")
+    public ApiResponse<?> getDiscountPolicy(@PathVariable Long productId) {
+        InsuranceProduct product = insuranceProductService.getDiscountPolicy(productId);
+        return ApiResponse.success(new DiscountPolicyResponse(
+                product.getId(),
+                product.getProductName(),
+                product.getDiscountRate()
+        ));
+    }
+
+    public record ProductResponse(Long id, Long insuranceCompanyId, String companyName, String productName, Integer baseAmount, String status) {}
     public record ProductListResponse(List<ProductResponse> products) {}
-    public record ProductDetailResponse(Long id, Long insuranceCompanyId, String companyName, String
-    productName, Integer baseAmount, String status, LocalDateTime createdAt) {}
+    public record ProductDetailResponse(Long id, Long insuranceCompanyId, String companyName, String productName, Integer baseAmount, String status, LocalDateTime createdAt) {}
+    public record DiscountPolicyResponse(Long productId, String productName, BigDecimal maxDiscountRate) {}
 }

@@ -36,4 +36,9 @@ public class InsuranceProductService {
         return insuranceProductRepository.findById(productId)
                 .orElseThrow(() -> new CustomException(ErrorCode.INSURANCE_PRODUCT_NOT_FOUND));
     }
+
+    public InsuranceProduct getDiscountPolicy(Long productId) {
+        return insuranceProductRepository.findById(productId)
+                .orElseThrow(() -> new CustomException(ErrorCode.INSURANCE_PRODUCT_NOT_FOUND));
+    }
 }
