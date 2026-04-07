@@ -9,5 +9,5 @@ import java.util.List;
 public interface InsuranceProductRepository extends JpaRepository<InsuranceProduct, Long>{
     List<InsuranceProduct> findAllByInsuranceCompany_Id(Long insuranceCompanyId);
     List<InsuranceProduct> findAllByStatus(InsuranceProductStatus status);
-    List<InsuranceProduct> findAllByInsuranceCompany_IdAndStatus(Long insuraneCompanyId, InsuranceProductStatus status);
+    List<InsuranceProduct> findAllByInsuranceCompany_IdAndStatus(Long insuranceCompanyId, InsuranceProductStatus status);
 }
