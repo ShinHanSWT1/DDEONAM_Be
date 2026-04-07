@@ -26,19 +26,30 @@ public class InsuranceCoverageService {
         insuranceProductRepository.findById(productId)
                 .orElseThrow(() -> new CustomException(ErrorCode.INSURANCE_PRODUCT_NOT_FOUND));
 
-        if (planType != null && category != null) {
+        InsurancePlanType parsedPlanType = parsePlanType(planType);
+
+        if (parsedPlanType != null && category != null) {
             return insuranceCoverageRepository.findAllByInsuranceProduct_IdAndPlanTypeAndCategoryAndStatus(
-                    productId, InsurancePlanType.valueOf(planType), category, InsuranceCoverageStatus.ACTIVE);
+                    productId, parsedPlanType, category, InsuranceCoverageStatus.ACTIVE);
         }
-        if (planType != null) {
+        if (parsedPlanType != null) {
             return insuranceCoverageRepository.findAllByInsuranceProduct_IdAndPlanTypeAndStatus(
-                    productId, InsurancePlanType.valueOf(planType), InsuranceCoverageStatus.ACTIVE);
+                    productId, parsedPlanType, InsuranceCoverageStatus.ACTIVE);
         }
         if (category != null) {
             return insuranceCoverageRepository.findAllByInsuranceProduct_IdAndCategoryAndStatus(
                     productId, category, InsuranceCoverageStatus.ACTIVE);
         }
         return insuranceCoverageRepository.findAllByInsuranceProduct_IdAndStatus(productId, InsuranceCoverageStatus.ACTIVE);
+    }
+
+    private InsurancePlanType parsePlanType(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return InsurancePlanType.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new CustomException(ErrorCode.INVALID_PLAN_TYPE);
+        }
     }
     public InsuranceProduct getDiscountPolicy(Long productId) {
         return insuranceProductRepository.findById(productId)
