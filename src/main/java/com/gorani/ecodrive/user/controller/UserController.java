@@ -44,7 +44,7 @@ public class UserController {
     ) {
     }
 
-    @PostMapping("/api/users/me/vehicles")
+    @PostMapping("/me/vehicles")
     public ApiResponse<OnboardingService.VehicleRegistrationResult> registerMyVehicle(
             @AuthenticationPrincipal CustomUserPrincipal principal,
             @RequestBody OnboardingService.VehicleRegistrationRequest request
@@ -55,7 +55,7 @@ public class UserController {
         );
     }
 
-    @PostMapping("/api/users/me/insurances")
+    @PostMapping("/me/insurances")
     public ApiResponse<OnboardingService.InsuranceRegistrationResult> registerMyInsurance(
             @AuthenticationPrincipal CustomUserPrincipal principal,
             @RequestBody OnboardingService.InsuranceRegistrationRequest request
@@ -66,7 +66,7 @@ public class UserController {
         );
     }
 
-    @PatchMapping("/api/users/me/onboarding")
+    @PatchMapping("/me/onboarding")
     public ApiResponse<OnboardingService.OnboardingCompletionResult> completeOnboarding(
             @AuthenticationPrincipal CustomUserPrincipal principal
     ) {
