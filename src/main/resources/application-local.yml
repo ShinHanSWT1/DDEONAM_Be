@@ -6,7 +6,7 @@ spring:
   # 왠만하면 이대로 동일하게 할 것
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/ecodrive
+    url: jdbc:postgresql://localhost:5432/ddeonam_local
     username: postgres
     password: gorani
 
