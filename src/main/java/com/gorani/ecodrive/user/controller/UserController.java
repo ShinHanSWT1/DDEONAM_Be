@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+@RequestMapping("/api/users")
 @RestController
 @RequiredArgsConstructor
 public class UserController {
@@ -16,7 +17,7 @@ public class UserController {
     private final UserService userService;
     private final OnboardingService onboardingService;
 
-    @GetMapping("/api/users/me")
+    @GetMapping("/me")
     public ApiResponse<UserMeResponse> getMyInfo(
             @AuthenticationPrincipal CustomUserPrincipal principal
     ) {
