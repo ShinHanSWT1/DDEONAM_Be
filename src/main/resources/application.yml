@@ -30,7 +30,7 @@ spring:
             client-secret: ${KAKAO_CLIENT_SECRET}
             client-authentication-method: client_secret_post
             authorization-grant-type: authorization_code
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            redirect-uri: "{baseUrl}/api/login/oauth2/code/{registrationId}"
             scope:
               - profile_nickname
               - profile_image
@@ -57,7 +57,7 @@ logging:
     org.hibernate.orm.jdbc.bind: trace
 
 app:
-  frontend-url: ${FRONTEND_URL}
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
   cdn-url: https://${AWS_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com
 
 cloud:
