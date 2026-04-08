@@ -37,6 +37,11 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         Map<String, Object> attributes = Objects.requireNonNull(oAuth2User).getAttributes();
 
         OAuthAttributes oAuthAttributes = OAuthAttributes.ofKakao(attributes);
+        if (oAuthAttributes.email() == null || oAuthAttributes.email().isBlank()) {
+            response.sendRedirect(buildLoginRedirectUrl("email_required"));
+            return;
+        }
+
         User user = oAuthLoginService.loginOrRegister(oAuthAttributes);
 
         String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getRole().name());
@@ -48,5 +53,13 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 .toUriString();
 
         response.sendRedirect(redirectUrl);
+    }
+
+    private String buildLoginRedirectUrl(String error) {
+        return UriComponentsBuilder
+                .fromUriString(frontendUrl + "/login")
+                .queryParam("error", error)
+                .build()
+                .toUriString();
     }
 }

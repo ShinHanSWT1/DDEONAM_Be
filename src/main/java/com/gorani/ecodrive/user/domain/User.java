@@ -33,6 +33,9 @@ public class User extends BaseEntity {
     @Column(name = "profile_image_url", length = 500)
     private String profileImageUrl;
 
+    @Column(name = "is_onboarding_completed", nullable = false)
+    private boolean isOnboardingCompleted;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 20)
     private UserRole role;
@@ -47,6 +50,7 @@ public class User extends BaseEntity {
             String email,
             String nickname,
             String profileImageUrl,
+            boolean isOnboardingCompleted,
             UserRole role
     ) {
         this.oauthProvider = oauthProvider;
@@ -54,6 +58,7 @@ public class User extends BaseEntity {
         this.email = email;
         this.nickname = nickname;
         this.profileImageUrl = profileImageUrl;
+        this.isOnboardingCompleted = isOnboardingCompleted;
         this.role = role;
     }
 
@@ -61,5 +66,9 @@ public class User extends BaseEntity {
         this.email = email;
         this.nickname = nickname;
         this.profileImageUrl = profileImageUrl;
+    }
+
+    public void updateOnboardingCompleted(boolean isOnboardingCompleted) {
+        this.isOnboardingCompleted = isOnboardingCompleted;
     }
 }

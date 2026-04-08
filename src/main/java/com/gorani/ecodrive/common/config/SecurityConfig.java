@@ -68,11 +68,11 @@ public class SecurityConfig {
                         .requestMatchers("/", "/error").permitAll()
                         .requestMatchers("/api/oauth2/**", "/api/login/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
-                        .requestMatchers("/api/users/me").authenticated()
-                        .anyRequest().permitAll()
+                        .requestMatchers("/api/users/me", "/api/users/me/**").authenticated()
+                        .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth -> oauth
-                        .authorizationEndpoint(auth -> auth
+                        .authorizationEndpoint(authorization -> authorization
                                 .baseUri("/api/oauth2/authorization")
                         )
                         .redirectionEndpoint(redirection -> redirection
