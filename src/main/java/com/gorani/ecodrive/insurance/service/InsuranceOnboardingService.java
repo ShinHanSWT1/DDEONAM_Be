@@ -1,4 +1,4 @@
-package com.gorani.ecodrive.user.service;
+package com.gorani.ecodrive.insurance.service;
 
 import com.gorani.ecodrive.common.exception.CustomException;
 import com.gorani.ecodrive.common.exception.ErrorCode;
