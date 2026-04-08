@@ -34,6 +34,7 @@ public class OAuthLoginService {
                                 .email(attributes.email())
                                 .nickname(attributes.nickname())
                                 .profileImageUrl(attributes.profileImageUrl())
+                                .isOnboardingCompleted(false)
                                 .role(UserRole.USER)
                                 .build()
                 ));
