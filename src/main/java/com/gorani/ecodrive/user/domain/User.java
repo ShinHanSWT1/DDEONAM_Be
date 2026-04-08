@@ -37,6 +37,9 @@ public class User extends BaseEntity {
     @Column(name = "role", nullable = false, length = 20)
     private UserRole role;
 
+    @Column(name = "age")
+    private Integer age;
+
     @Builder
     public User(
             OAuthProvider oauthProvider,
