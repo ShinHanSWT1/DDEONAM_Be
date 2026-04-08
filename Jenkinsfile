@@ -36,6 +36,13 @@ pipeline {
     }
 
     stages {
+        stage('0. Harbor Login') {
+            steps {
+                 withCredentials([usernamePassword(credentialsId: HARBOR_CREDENTIALS_ID, usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh "podman login ${REGISTRY} -u ${USER} -p ${PASS}" 
+                }
+            }
+        }
         stage('1. Checkout') {
             steps {
                 git branch: "${GIT_BRANCH}", url: "${GIT_URL}"
@@ -53,11 +60,9 @@ pipeline {
 
         stage('3. Push to Harbor') {
             steps {
-                withCredentials([usernamePassword(credentialsId: HARBOR_CREDENTIALS_ID, usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh "podman login ${REGISTRY} -u ${USER} -p ${PASS}"
                     sh "podman push ${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:${BUILD_NUMBER} --tls-verify=false"
                     sh "podman push ${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:latest --tls-verify=false"
-                }
+                
             }
         }
 
@@ -122,6 +127,22 @@ EOF
                     }
                 }
             }
+        }
+    }
+
+    post {
+        always {
+                sh 'podman logout ${REGISTRY} || true'
+                sh 'podman rmi ${FULL_IMAGE_TAG} || true'
+                sh 'podman rmi ${LATEST_IMAGE_TAG} || true'
+                sh 'podman system prune -a -f || true'
+                cleanWs()
+        }
+        success {
+                echo 'DEV frontend 배포 완료'
+        }
+        failure {
+                echo 'DEV frontend 배포 실패'
         }
     }
 }
