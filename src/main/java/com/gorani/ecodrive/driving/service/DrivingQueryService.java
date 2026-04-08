@@ -3,10 +3,18 @@ package com.gorani.ecodrive.driving.service;
 import com.gorani.ecodrive.driving.dto.DrivingLatestCarbonResponse;
 import com.gorani.ecodrive.driving.dto.DrivingLatestScoreResponse;
 import com.gorani.ecodrive.driving.dto.DrivingRecentSessionResponse;
+import com.gorani.ecodrive.driving.dto.DrivingBehaviorSummaryResponse;
+import com.gorani.ecodrive.driving.dto.DrivingDailySummaryResponse;
+import com.gorani.ecodrive.driving.dto.DrivingMonthlySummaryResponse;
+import com.gorani.ecodrive.driving.dto.DrivingScoreHistoryResponse;
+import com.gorani.ecodrive.driving.dto.DrivingScoreTrendResponse;
+import com.gorani.ecodrive.driving.dto.DrivingWeeklySummaryResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -16,10 +24,12 @@ public class DrivingQueryService {
     private final JdbcTemplate jdbcTemplate;
 
     public DrivingLatestScoreResponse getLatestScore(Long userId) {
+        LocalDate currentMonthStart = LocalDate.now().withDayOfMonth(1);
         return jdbcTemplate.query("""
                         select snapshot_date, score
                         from driving_score_snapshots
                         where user_id = ?
+                          and snapshot_date >= ?
                         order by snapshot_date desc, id desc
                         limit 1
                         """,
@@ -29,7 +39,8 @@ public class DrivingQueryService {
                         rs.getInt("score")
                 )
                         : new DrivingLatestScoreResponse(null, null),
-                userId
+                userId,
+                currentMonthStart
         );
     }
 
@@ -69,10 +80,15 @@ public class DrivingQueryService {
     }
 
     public DrivingLatestCarbonResponse getLatestCarbon(Long userId) {
+        LocalDate currentMonthStart = LocalDate.now().withDayOfMonth(1);
         return jdbcTemplate.query("""
-                        select snapshot_date, carbon_reduction_kg, reward_point
+                        select
+                            snapshot_date,
+                            carbon_reduction_kg,
+                            reward_point
                         from carbon_reduction_snapshots
                         where user_id = ?
+                          and snapshot_date >= ?
                         order by snapshot_date desc, id desc
                         limit 1
                         """,
@@ -83,7 +99,281 @@ public class DrivingQueryService {
                         rs.getInt("reward_point")
                 )
                         : new DrivingLatestCarbonResponse(null, null, null),
-                userId
+                userId,
+                currentMonthStart
+        );
+    }
+
+    public DrivingDailySummaryResponse getDailySummary(Long userId, LocalDate date) {
+        return jdbcTemplate.query("""
+                        select
+                            s.session_date,
+                            count(*) as session_count,
+                            coalesce(sum(s.distance_km), 0) as total_distance_km,
+                            coalesce(sum(s.driving_time_minutes), 0) as total_driving_time_minutes,
+                            coalesce(sum(s.idling_time_minutes), 0) as total_idling_time_minutes,
+                            coalesce(avg(s.average_speed), 0) as average_speed,
+                            coalesce(max(s.max_speed), 0) as max_speed,
+                            min(s.started_at) as first_started_at,
+                            max(s.ended_at) as last_ended_at,
+                            coalesce(sum(case when e.event_type = 'RAPID_ACCEL' then 1 else 0 end), 0) as rapid_accel_count,
+                            coalesce(sum(case when e.event_type = 'HARD_BRAKE' then 1 else 0 end), 0) as hard_brake_count,
+                            coalesce(sum(case when e.event_type = 'OVERSPEED' then 1 else 0 end), 0) as overspeed_count
+                        from driving_sessions s
+                        left join driving_events e on e.driving_session_id = s.id
+                        where s.user_id = ?
+                          and s.session_date = ?
+                        group by s.session_date
+                        """,
+                rs -> rs.next()
+                        ? new DrivingDailySummaryResponse(
+                        rs.getObject("session_date", LocalDate.class),
+                        rs.getInt("session_count"),
+                        rs.getBigDecimal("total_distance_km"),
+                        rs.getInt("total_driving_time_minutes"),
+                        rs.getInt("total_idling_time_minutes"),
+                        rs.getBigDecimal("average_speed"),
+                        rs.getBigDecimal("max_speed"),
+                        rs.getInt("rapid_accel_count"),
+                        rs.getInt("hard_brake_count"),
+                        rs.getInt("overspeed_count"),
+                        rs.getTimestamp("first_started_at").toLocalDateTime(),
+                        rs.getTimestamp("last_ended_at").toLocalDateTime()
+                )
+                        : new DrivingDailySummaryResponse(date, 0, null, null, null, null, null, null, null, null, null, null),
+                userId,
+                date
+        );
+    }
+
+    public DrivingBehaviorSummaryResponse getBehaviorSummary(Long userId, LocalDate date) {
+        return jdbcTemplate.query("""
+                        select
+                            ? as session_date,
+                            coalesce(sum(case when e.event_type = 'RAPID_ACCEL' then 1 else 0 end), 0) as rapid_accel_count,
+                            coalesce(sum(case when e.event_type = 'HARD_BRAKE' then 1 else 0 end), 0) as hard_brake_count,
+                            coalesce(sum(case when e.event_type = 'OVERSPEED' then 1 else 0 end), 0) as overspeed_count,
+                            coalesce(sum(case
+                                when extract(hour from s.started_at) >= 22
+                                  or extract(hour from s.started_at) < 6
+                                  or extract(hour from s.ended_at) >= 22
+                                  or extract(hour from s.ended_at) < 6
+                                then 1 else 0 end), 0) as night_driving_count,
+                            coalesce(sum(s.idling_time_minutes), 0) as total_idling_time_minutes
+                        from driving_sessions s
+                        left join driving_events e on e.driving_session_id = s.id
+                        where s.user_id = ?
+                          and s.session_date = ?
+                        """,
+                rs -> rs.next()
+                        ? new DrivingBehaviorSummaryResponse(
+                        rs.getObject("session_date", LocalDate.class),
+                        rs.getInt("rapid_accel_count"),
+                        rs.getInt("hard_brake_count"),
+                        rs.getInt("overspeed_count"),
+                        rs.getInt("night_driving_count"),
+                        rs.getInt("total_idling_time_minutes")
+                )
+                        : new DrivingBehaviorSummaryResponse(date, 0, 0, 0, 0, 0),
+                date,
+                userId,
+                date
+        );
+    }
+
+    public List<DrivingWeeklySummaryResponse> getWeeklySummaries(Long userId, int year, int month) {
+        return jdbcTemplate.query("""
+                        with daily_metrics as (
+                            select
+                                s.session_date,
+                                ((extract(day from s.session_date)::int - 1) / 7) + 1 as week_of_month,
+                                count(*) as session_count,
+                                coalesce(sum(s.distance_km), 0) as total_distance_km,
+                                coalesce(sum(s.idling_time_minutes), 0) as total_idling_time_minutes,
+                                coalesce(avg(s.average_speed), 0) as average_speed,
+                                coalesce(max(s.max_speed), 0) as max_speed
+                            from driving_sessions s
+                            where s.user_id = ?
+                              and extract(year from s.session_date) = ?
+                              and extract(month from s.session_date) = ?
+                            group by s.session_date
+                        )
+                        select
+                            ? as year,
+                            ? as month,
+                            week_of_month,
+                            min(session_date) as start_date,
+                            max(session_date) as end_date,
+                            count(*) as day_count,
+                            coalesce(sum(session_count), 0) as session_count,
+                            coalesce(avg(total_distance_km), 0) as average_distance_km,
+                            coalesce(avg(total_idling_time_minutes), 0) as average_idling_time_minutes,
+                            coalesce(avg(average_speed), 0) as average_speed,
+                            coalesce(max(max_speed), 0) as max_speed
+                        from daily_metrics
+                        group by week_of_month
+                        order by week_of_month
+                        """,
+                (rs, rowNum) -> {
+                    int weekOfMonth = rs.getInt("week_of_month");
+                    return new DrivingWeeklySummaryResponse(
+                            rs.getInt("year"),
+                            rs.getInt("month"),
+                            weekOfMonth,
+                            rs.getInt("month") + "월 " + weekOfMonth + "주차",
+                            rs.getObject("start_date", LocalDate.class),
+                            rs.getObject("end_date", LocalDate.class),
+                            rs.getInt("day_count"),
+                            rs.getInt("session_count"),
+                            rs.getBigDecimal("average_distance_km"),
+                            rs.getBigDecimal("average_idling_time_minutes"),
+                            rs.getBigDecimal("average_speed"),
+                            rs.getBigDecimal("max_speed")
+                    );
+                },
+                userId,
+                year,
+                month,
+                year,
+                month
+        );
+    }
+
+    public DrivingMonthlySummaryResponse getMonthlySummary(Long userId, int year, int month) {
+        return jdbcTemplate.query("""
+                        with session_metrics as (
+                            select
+                                count(*) as session_count,
+                                count(distinct session_date) as day_count,
+                                coalesce(sum(distance_km), 0) as total_distance_km,
+                                coalesce(sum(driving_time_minutes), 0) as total_driving_time_minutes,
+                                coalesce(sum(idling_time_minutes), 0) as total_idling_time_minutes,
+                                coalesce(avg(average_speed), 0) as average_speed,
+                                coalesce(max(max_speed), 0) as max_speed
+                            from driving_sessions
+                            where user_id = ?
+                              and extract(year from session_date) = ?
+                              and extract(month from session_date) = ?
+                        ),
+                        event_metrics as (
+                            select
+                                coalesce(sum(case when e.event_type = 'RAPID_ACCEL' then 1 else 0 end), 0) as rapid_accel_count,
+                                coalesce(sum(case when e.event_type = 'HARD_BRAKE' then 1 else 0 end), 0) as hard_brake_count,
+                                coalesce(sum(case when e.event_type = 'OVERSPEED' then 1 else 0 end), 0) as overspeed_count
+                            from driving_events e
+                            join driving_sessions s on e.driving_session_id = s.id
+                            where e.user_id = ?
+                              and extract(year from s.session_date) = ?
+                              and extract(month from s.session_date) = ?
+                        ),
+                        latest_carbon as (
+                            select
+                                carbon_reduction_kg,
+                                reward_point
+                            from carbon_reduction_snapshots
+                            where user_id = ?
+                              and extract(year from snapshot_date) = ?
+                              and extract(month from snapshot_date) = ?
+                            order by snapshot_date desc, id desc
+                            limit 1
+                        ),
+                        carbon_metrics as (
+                            select
+                                coalesce((select carbon_reduction_kg from latest_carbon), 0) as carbon_reduction_kg,
+                                coalesce((select reward_point from latest_carbon), 0) as reward_point
+                        )
+                        select
+                            ? as year,
+                            ? as month,
+                            sm.session_count,
+                            sm.day_count,
+                            sm.total_distance_km,
+                            sm.total_driving_time_minutes,
+                            sm.total_idling_time_minutes,
+                            sm.average_speed,
+                            sm.max_speed,
+                            em.rapid_accel_count,
+                            em.hard_brake_count,
+                            em.overspeed_count,
+                            case
+                                when sm.total_driving_time_minutes = 0 then 0
+                                else round(((sm.total_driving_time_minutes - sm.total_idling_time_minutes)::numeric / sm.total_driving_time_minutes) * 100, 2)
+                            end as steady_driving_ratio,
+                            cm.carbon_reduction_kg,
+                            cm.reward_point
+                        from session_metrics sm
+                        cross join event_metrics em
+                        cross join carbon_metrics cm
+                        """,
+                rs -> rs.next() && rs.getInt("session_count") > 0
+                        ? new DrivingMonthlySummaryResponse(
+                        rs.getInt("year"),
+                        rs.getInt("month"),
+                        rs.getInt("session_count"),
+                        rs.getInt("day_count"),
+                        rs.getBigDecimal("total_distance_km"),
+                        rs.getInt("total_driving_time_minutes"),
+                        rs.getInt("total_idling_time_minutes"),
+                        rs.getBigDecimal("average_speed"),
+                        rs.getBigDecimal("max_speed"),
+                        rs.getInt("rapid_accel_count"),
+                        rs.getInt("hard_brake_count"),
+                        rs.getInt("overspeed_count"),
+                        rs.getBigDecimal("steady_driving_ratio"),
+                        rs.getBigDecimal("carbon_reduction_kg"),
+                        rs.getInt("reward_point")
+                )
+                        : new DrivingMonthlySummaryResponse(year, month, 0, 0, BigDecimal.ZERO, 0, 0, null, null, 0, 0, 0, BigDecimal.ZERO, BigDecimal.ZERO, 0),
+                userId,
+                year,
+                month,
+                userId,
+                year,
+                month,
+                userId,
+                year,
+                month,
+                year,
+                month
+        );
+    }
+
+    public List<DrivingScoreTrendResponse> getScoreTrend(Long userId, int year, int month) {
+        return jdbcTemplate.query("""
+                        select snapshot_date, score
+                        from driving_score_snapshots
+                        where user_id = ?
+                          and extract(year from snapshot_date) = ?
+                          and extract(month from snapshot_date) = ?
+                        order by snapshot_date asc, id asc
+                        """,
+                (rs, rowNum) -> new DrivingScoreTrendResponse(
+                        rs.getObject("snapshot_date", LocalDate.class),
+                        rs.getInt("score")
+                ),
+                userId,
+                year,
+                month
+        );
+    }
+
+    public List<DrivingScoreHistoryResponse> getScoreHistory(Long userId, int limit) {
+        return jdbcTemplate.query("""
+                        select id, change_type, message, score_delta, change_date
+                        from driving_score_change_logs
+                        where user_id = ?
+                        order by change_date desc, display_order asc, id desc
+                        limit ?
+                        """,
+                (rs, rowNum) -> new DrivingScoreHistoryResponse(
+                        rs.getLong("id"),
+                        rs.getString("change_type"),
+                        rs.getString("message"),
+                        rs.getInt("score_delta"),
+                        rs.getObject("change_date", LocalDate.class)
+                ),
+                userId,
+                limit
         );
     }
 }

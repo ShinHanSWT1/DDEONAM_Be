@@ -5,6 +5,12 @@ import com.gorani.ecodrive.common.security.CustomUserPrincipal;
 import com.gorani.ecodrive.driving.dto.DrivingLatestCarbonResponse;
 import com.gorani.ecodrive.driving.dto.DrivingLatestScoreResponse;
 import com.gorani.ecodrive.driving.dto.DrivingRecentSessionResponse;
+import com.gorani.ecodrive.driving.dto.DrivingBehaviorSummaryResponse;
+import com.gorani.ecodrive.driving.dto.DrivingDailySummaryResponse;
+import com.gorani.ecodrive.driving.dto.DrivingMonthlySummaryResponse;
+import com.gorani.ecodrive.driving.dto.DrivingScoreHistoryResponse;
+import com.gorani.ecodrive.driving.dto.DrivingScoreTrendResponse;
+import com.gorani.ecodrive.driving.dto.DrivingWeeklySummaryResponse;
 import com.gorani.ecodrive.driving.service.DrivingQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -13,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -50,6 +57,75 @@ public class DrivingQueryController {
         return ApiResponse.success(
                 "최신 탄소 절감량 조회 성공",
                 drivingQueryService.getLatestCarbon(principal.getUserId())
+        );
+    }
+
+    @GetMapping("/daily-summary")
+    public ApiResponse<DrivingDailySummaryResponse> getDailySummary(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam LocalDate date
+    ) {
+        return ApiResponse.success(
+                "일자별 주행 요약 조회 성공",
+                drivingQueryService.getDailySummary(principal.getUserId(), date)
+        );
+    }
+
+    @GetMapping("/behavior-summary")
+    public ApiResponse<DrivingBehaviorSummaryResponse> getBehaviorSummary(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam LocalDate date
+    ) {
+        return ApiResponse.success(
+                "일자별 주행 행동 요약 조회 성공",
+                drivingQueryService.getBehaviorSummary(principal.getUserId(), date)
+        );
+    }
+
+    @GetMapping("/weekly-summaries")
+    public ApiResponse<List<DrivingWeeklySummaryResponse>> getWeeklySummaries(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam int year,
+            @RequestParam int month
+    ) {
+        return ApiResponse.success(
+                "주차별 주행 요약 조회 성공",
+                drivingQueryService.getWeeklySummaries(principal.getUserId(), year, month)
+        );
+    }
+
+    @GetMapping("/monthly-summary")
+    public ApiResponse<DrivingMonthlySummaryResponse> getMonthlySummary(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam int year,
+            @RequestParam int month
+    ) {
+        return ApiResponse.success(
+                "월별 주행 요약 조회 성공",
+                drivingQueryService.getMonthlySummary(principal.getUserId(), year, month)
+        );
+    }
+
+    @GetMapping("/scores/trend")
+    public ApiResponse<List<DrivingScoreTrendResponse>> getScoreTrend(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam int year,
+            @RequestParam int month
+    ) {
+        return ApiResponse.success(
+                "점수 추이 조회 성공",
+                drivingQueryService.getScoreTrend(principal.getUserId(), year, month)
+        );
+    }
+
+    @GetMapping("/scores/history")
+    public ApiResponse<List<DrivingScoreHistoryResponse>> getScoreHistory(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam(defaultValue = "10") int limit
+    ) {
+        return ApiResponse.success(
+                "점수 변화 이력 조회 성공",
+                drivingQueryService.getScoreHistory(principal.getUserId(), Math.max(1, Math.min(limit, 20)))
         );
     }
 }

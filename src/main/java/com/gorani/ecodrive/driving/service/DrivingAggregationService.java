@@ -11,8 +11,11 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -21,8 +24,9 @@ public class DrivingAggregationService {
     private final JdbcTemplate jdbcTemplate;
 
     public int refreshSummaries(List<UserDateKey> affectedUserDates) {
+        Set<UserDateKey> datesToRefresh = expandAffectedDates(affectedUserDates);
         int updatedUsers = 0;
-        for (UserDateKey key : affectedUserDates) {
+        for (UserDateKey key : datesToRefresh) {
             AggregatedDrivingMetrics metrics = loadMetrics(key.userId(), key.sessionDate());
             if (metrics == null) {
                 continue;
@@ -36,25 +40,64 @@ public class DrivingAggregationService {
         return updatedUsers;
     }
 
+    private Set<UserDateKey> expandAffectedDates(List<UserDateKey> affectedUserDates) {
+        Set<UserDateKey> expanded = new LinkedHashSet<>();
+        for (UserDateKey key : affectedUserDates) {
+            LocalDate monthStart = key.sessionDate().withDayOfMonth(1);
+            YearMonth yearMonth = YearMonth.from(key.sessionDate());
+            LocalDate monthEnd = yearMonth.atEndOfMonth();
+
+            List<LocalDate> impactedDates = jdbcTemplate.query("""
+                            select distinct session_date
+                            from driving_sessions
+                            where user_id = ?
+                              and session_date between ? and ?
+                              and session_date >= ?
+                            order by session_date asc
+                            """,
+                    (rs, rowNum) -> rs.getObject("session_date", LocalDate.class),
+                    key.userId(),
+                    monthStart,
+                    monthEnd,
+                    key.sessionDate()
+            );
+
+            if (impactedDates.isEmpty()) {
+                expanded.add(key);
+                continue;
+            }
+
+            for (LocalDate impactedDate : impactedDates) {
+                expanded.add(new UserDateKey(key.userId(), impactedDate));
+            }
+        }
+        return expanded;
+    }
+
     private AggregatedDrivingMetrics loadMetrics(Long userId, LocalDate sessionDate) {
+        LocalDate monthStart = sessionDate.withDayOfMonth(1);
         SessionMetrics sessionMetrics = jdbcTemplate.query("""
                         select
+                            count(*) as session_count,
                             coalesce(sum(distance_km), 0) as total_distance_km,
                             coalesce(sum(driving_time_minutes), 0) as total_driving_time_minutes,
                             coalesce(sum(idling_time_minutes), 0) as total_idling_time_minutes,
                             max(user_vehicle_id) as user_vehicle_id
                         from driving_sessions
-                        where user_id = ? and session_date = ?
+                        where user_id = ?
+                          and session_date between ? and ?
                         """,
                 rs -> rs.next()
                         ? new SessionMetrics(
+                        rs.getInt("session_count"),
                         rs.getBigDecimal("total_distance_km"),
                         rs.getInt("total_driving_time_minutes"),
                         rs.getInt("total_idling_time_minutes"),
                         rs.getLong("user_vehicle_id")
-                )
+                        )
                         : null,
                 userId,
+                monthStart,
                 sessionDate
         );
 
@@ -69,7 +112,8 @@ public class DrivingAggregationService {
                             coalesce(sum(case when event_type = 'OVERSPEED' then 1 else 0 end), 0) as overspeed_count
                         from driving_events e
                         join driving_sessions s on e.driving_session_id = s.id
-                        where e.user_id = ? and s.session_date = ?
+                        where e.user_id = ?
+                          and s.session_date between ? and ?
                         """,
                 rs -> rs.next()
                         ? new EventMetrics(
@@ -79,24 +123,34 @@ public class DrivingAggregationService {
                 )
                         : new EventMetrics(0, 0, 0),
                 userId,
+                monthStart,
                 sessionDate
         );
 
         VehicleProfile vehicleProfile = loadVehicleProfile(sessionMetrics.userVehicleId());
 
-        int safetyScore = clamp(100
-                - (eventMetrics.rapidAccelCount() * 4)
-                - (eventMetrics.hardBrakeCount() * 5)
-                - (eventMetrics.overspeedCount() * 6));
+        int sessionCount = Math.max(sessionMetrics.sessionCount(), 1);
+        double rapidAccelPerSession = (double) eventMetrics.rapidAccelCount() / sessionCount;
+        double hardBrakePerSession = (double) eventMetrics.hardBrakeCount() / sessionCount;
+        double overspeedPerSession = (double) eventMetrics.overspeedCount() / sessionCount;
+
+        int safetyPenalty = (int) Math.round(
+                (rapidAccelPerSession * 4)
+                        + (hardBrakePerSession * 5)
+                        + (overspeedPerSession * 6)
+        );
+        int safetyScore = clamp(100 - Math.min(safetyPenalty, 45));
 
         double idleRatio = sessionMetrics.totalDrivingTimeMinutes() == 0
                 ? 0
                 : (double) sessionMetrics.totalIdlingTimeMinutes() / sessionMetrics.totalDrivingTimeMinutes();
 
-        int ecoScore = clamp((int) Math.round(100
-                - (idleRatio * 50)
-                - (eventMetrics.rapidAccelCount() * 5)
-                - (eventMetrics.hardBrakeCount() * 3)));
+        int ecoPenalty = (int) Math.round(
+                (idleRatio * 50)
+                        + (rapidAccelPerSession * 5)
+                        + (hardBrakePerSession * 3)
+        );
+        int ecoScore = clamp(100 - Math.min(ecoPenalty, 45));
 
         BigDecimal actualCo2G = sessionMetrics.totalDistanceKm()
                 .multiply(vehicleProfile.baseEmissionFactor())
@@ -293,15 +347,17 @@ public class DrivingAggregationService {
                         select score
                         from driving_score_snapshots
                         where user_id = ? and snapshot_date < ?
+                          and date_trunc('month', snapshot_date) = date_trunc('month', ?::date)
                         order by snapshot_date desc
                         limit 1
                         """,
                 rs -> rs.next() ? rs.getInt("score") : null,
                 userId,
-                sessionDate
+                sessionDate,
+                Date.valueOf(sessionDate)
         );
 
-        int scoreDelta = previousScore == null ? 0 : safetyScore - previousScore;
+        int scoreDelta = previousScore == null ? safetyScore - 100 : safetyScore - previousScore;
 
         jdbcTemplate.update("""
                         delete from driving_score_change_logs
@@ -338,6 +394,7 @@ public class DrivingAggregationService {
     }
 
     private record SessionMetrics(
+            int sessionCount,
             BigDecimal totalDistanceKm,
             int totalDrivingTimeMinutes,
             int totalIdlingTimeMinutes,

@@ -20,7 +20,7 @@ EVENT_TYPES = ("RAPID_ACCEL", "HARD_BRAKE", "OVERSPEED")
 
 
 def choose_driver_style() -> str:
-    return random.choices(DRIVER_STYLES, weights=[0.3, 0.5, 0.2], k=1)[0]
+    return random.choices(DRIVER_STYLES, weights=[0.45, 0.45, 0.1], k=1)[0]
 
 
 def resolve_vehicle_profile(style: str) -> VehicleProfile:
@@ -33,10 +33,10 @@ def resolve_vehicle_profile(style: str) -> VehicleProfile:
 
 def generate_event_counts(style: str) -> tuple[int, int, int, int]:
     if style == "ECO":
-        return random.randint(0, 1), random.randint(0, 1), random.randint(0, 1), random.randint(1, 4)
+        return random.randint(0, 1), random.randint(0, 1), 0, random.randint(1, 3)
     if style == "AGGRESSIVE":
-        return random.randint(2, 5), random.randint(2, 5), random.randint(1, 3), random.randint(5, 12)
-    return random.randint(1, 2), random.randint(0, 2), random.randint(0, 1), random.randint(3, 7)
+        return random.randint(1, 3), random.randint(1, 3), random.randint(0, 2), random.randint(3, 7)
+    return random.randint(0, 2), random.randint(0, 1), random.randint(0, 1), random.randint(2, 5)
 
 
 def calculate_safety_score(rapid_accel_count: int, hard_brake_count: int, overspeed_count: int) -> int:
