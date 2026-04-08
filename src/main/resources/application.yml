@@ -57,10 +57,10 @@ logging:
     org.hibernate.orm.jdbc.bind: trace
 
 app:
-  frontend-url: ${FRONTEND_URL:http://localhost:3000}
-  cdn-url: https://${cloud.aws.s3.bucket}.s3.${cloud.aws.region.static}.amazonaws.com
+  frontend-url: ${FRONTEND_URL}
+  cdn-url: https://${AWS_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com
   driving-dummy:
-    base-dir: ${DRIVING_DUMMY_BASE_DIR:../generated/driving}
+    base-dir: ${DRIVING_DUMMY_BASE_DIR:generated/driving}
     refresh-cron: ${DRIVING_DUMMY_REFRESH_CRON:0 0 * * * *}
     generation-cron: ${DRIVING_DUMMY_GENERATION_CRON:0 0 6 * * *}
     generation-enabled: ${DRIVING_DUMMY_GENERATION_ENABLED:true}

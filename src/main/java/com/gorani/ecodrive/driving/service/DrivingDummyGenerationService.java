@@ -45,7 +45,11 @@ public class DrivingDummyGenerationService {
     public DummyDrivingGenerationResult generateTodayBatches(Path outputDir) {
         LocalDateTime runAt = LocalDateTime.now();
         List<String> generatedFiles = new ArrayList<>();
-        Path resolvedScriptPath = resolveScriptPath(outputDir);
+        Path backendRoot = resolveBackendRoot();
+        Path resolvedScriptPath = resolveScriptPath(backendRoot);
+        Path resolvedOutputDir = outputDir.isAbsolute()
+                ? outputDir.normalize()
+                : backendRoot.resolve(outputDir).normalize();
 
         for (GenerationTarget target : targets) {
             int sessionCount = defaultSessionsPerUser + (shouldAddExtraSession() ? 1 : 0);
@@ -56,7 +60,7 @@ public class DrivingDummyGenerationService {
                     "--user-vehicle-id", String.valueOf(target.userVehicleId()),
                     "--sessions", String.valueOf(sessionCount),
                     "--run-at", runAt.format(RUN_AT_FORMAT),
-                    "--output-dir", outputDir.toString()
+                    "--output-dir", resolvedOutputDir.toString()
             );
 
             try {
@@ -79,34 +83,18 @@ public class DrivingDummyGenerationService {
         );
     }
 
-    private Path resolveScriptPath(Path outputDir) {
+    private Path resolveScriptPath(Path backendRoot) {
         if (scriptPath.isAbsolute() && Files.exists(scriptPath)) {
             return scriptPath;
         }
 
-        Path cwdResolved = Path.of(System.getProperty("user.dir"))
-                .resolve(scriptPath)
-                .normalize();
-        if (Files.exists(cwdResolved)) {
-            return cwdResolved;
-        }
-
-        Path projectRoot = inferProjectRoot(outputDir);
         Path normalizedRelative = stripLeadingParentSegments(scriptPath);
-        Path projectResolved = projectRoot.resolve(normalizedRelative).normalize();
-        if (Files.exists(projectResolved)) {
-            return projectResolved;
+        Path backendResolved = backendRoot.resolve(normalizedRelative).normalize();
+        if (Files.exists(backendResolved)) {
+            return backendResolved;
         }
 
         throw new IllegalStateException("주행 더미데이터 스크립트를 찾을 수 없습니다. configured=" + scriptPath);
-    }
-
-    private Path inferProjectRoot(Path outputDir) {
-        Path current = outputDir.toAbsolutePath().normalize();
-        for (int i = 0; i < 3 && current.getParent() != null; i++) {
-            current = current.getParent();
-        }
-        return current;
     }
 
     private Path stripLeadingParentSegments(Path path) {
@@ -119,6 +107,35 @@ public class DrivingDummyGenerationService {
             result = result.resolve(segment);
         }
         return result;
+    }
+
+    private Path resolveBackendRoot() {
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+
+        if (Files.exists(current.resolve("build.gradle"))) {
+            return current;
+        }
+
+        Path nestedBackendRoot = current.resolve("EcoDrive_be");
+        if (Files.exists(nestedBackendRoot.resolve("build.gradle"))) {
+            return nestedBackendRoot;
+        }
+
+        Path walker = current;
+        while (walker != null) {
+            if (Files.exists(walker.resolve("build.gradle"))) {
+                return walker;
+            }
+
+            Path nested = walker.resolve("EcoDrive_be");
+            if (Files.exists(nested.resolve("build.gradle"))) {
+                return nested;
+            }
+
+            walker = walker.getParent();
+        }
+
+        throw new IllegalStateException("EcoDrive_be 모듈 루트를 찾을 수 없습니다. user.dir=" + current);
     }
 
     private boolean shouldAddExtraSession() {

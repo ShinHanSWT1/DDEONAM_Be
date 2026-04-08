@@ -23,9 +23,12 @@ public class DrivingDummyFileManager {
     private final Path baseDir;
 
     public DrivingDummyFileManager(
-            @Value("${app.driving-dummy.base-dir:../generated/driving}") String baseDir
+            @Value("${app.driving-dummy.base-dir:generated/driving}") String baseDir
     ) {
-        this.baseDir = Path.of(baseDir).normalize();
+        Path configuredPath = Path.of(baseDir).normalize();
+        this.baseDir = configuredPath.isAbsolute()
+                ? configuredPath
+                : resolveBackendRoot().resolve(configuredPath).normalize();
     }
 
     @PostConstruct
@@ -64,5 +67,34 @@ public class DrivingDummyFileManager {
 
     public Path getFailedDir() {
         return baseDir.resolve("failed");
+    }
+
+    private Path resolveBackendRoot() {
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+
+        if (Files.exists(current.resolve("build.gradle"))) {
+            return current;
+        }
+
+        Path nestedBackendRoot = current.resolve("EcoDrive_be");
+        if (Files.exists(nestedBackendRoot.resolve("build.gradle"))) {
+            return nestedBackendRoot;
+        }
+
+        Path walker = current;
+        while (walker != null) {
+            if (Files.exists(walker.resolve("build.gradle"))) {
+                return walker;
+            }
+
+            Path nested = walker.resolve("EcoDrive_be");
+            if (Files.exists(nested.resolve("build.gradle"))) {
+                return nested;
+            }
+
+            walker = walker.getParent();
+        }
+
+        throw new IllegalStateException("EcoDrive_be 모듈 루트를 찾을 수 없습니다. user.dir=" + current);
     }
 }

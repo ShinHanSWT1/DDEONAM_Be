@@ -186,7 +186,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(__file__).resolve().parents[2] / "generated" / "driving" / "pending",
+        default=Path(__file__).resolve().parents[1] / "generated" / "driving" / "pending",
     )
     return parser.parse_args()
 
