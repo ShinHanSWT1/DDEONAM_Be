@@ -2,8 +2,10 @@ package com.gorani.ecodrive.user.service;
 
 import com.gorani.ecodrive.common.exception.CustomException;
 import com.gorani.ecodrive.common.exception.ErrorCode;
+import com.gorani.ecodrive.insurance.service.InsuranceOnboardingService;
 import com.gorani.ecodrive.user.domain.User;
 import com.gorani.ecodrive.user.repository.UserRepository;
+import com.gorani.ecodrive.vehicle.service.VehicleOnboardingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
