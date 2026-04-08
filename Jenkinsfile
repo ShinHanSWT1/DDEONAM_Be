@@ -103,7 +103,7 @@ pipeline {
 
                                     sudo podman run -d --name ${CONTAINER_NAME} \
                                         --pod ${REMOTE_POD_NAME} \
-                                        --restart always \
+                                        --restart on-failure:5 \
                                         -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \
                                         -e DB_URL=${DB_URL} \
                                         -e DB_HOST=${DB_HOST} \
