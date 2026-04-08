@@ -39,7 +39,7 @@ pipeline {
         stage('0. Harbor Login') {
             steps {
                  withCredentials([usernamePassword(credentialsId: HARBOR_CREDENTIALS_ID, usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh "podman login ${REGISTRY} -u ${USER} -p ${PASS}" 
+                    sh "podman login ${REGISTRY} -u ${USER} -p ${PASS} --tls-verify=false" 
                 }
             }
         }
@@ -60,8 +60,11 @@ pipeline {
 
         stage('3. Push to Harbor') {
             steps {
+                withCredentials([usernamePassword(credentialsId: HARBOR_CREDENTIALS_ID, usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh "podman login ${REGISTRY} -u ${USER} -p ${PASS} --tls-verify=false" 
                     sh "podman push ${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:${BUILD_NUMBER} --tls-verify=false"
                     sh "podman push ${REGISTRY}/${PROJECT_NAME}/${IMAGE_NAME}:latest --tls-verify=false"
+                }
                 
             }
         }
