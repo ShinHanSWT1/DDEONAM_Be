@@ -44,6 +44,8 @@ public class UserInsuranceService {
             throw new CustomException(ErrorCode.ALREADY_CANCELLED);
         }
 
+        contract.activate();
+
         UserInsurance userInsurance = UserInsurance.builder()
                 .user(user)
                 .userVehicleId(userVehicleId)

@@ -9,7 +9,6 @@ import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.LocalDate;
@@ -32,6 +31,7 @@ public class InsuranceOnboardingService {
             Long requestedUserVehicleId,
             String insuranceCompanyName,
             String insuranceProductName,
+            String planType,
             Integer annualPremium,
             LocalDate insuranceStartedAt,
             LocalDateTime now
@@ -44,15 +44,20 @@ public class InsuranceOnboardingService {
                 annualPremium,
                 now
         );
-        Long drivingScoreSnapshotId = findOrCreateDrivingScoreSnapshot(userId, now.toLocalDate(), now);
+        // 실제 주행 점수 스냅샷이 있으면 연결, 없으면 null (주행 기록 없는 신규 사용자)
+        Long drivingScoreSnapshotId = findExistingDrivingScoreSnapshot(userId);
+        
+        // 여기서 planType을 정확히 전달해야 합니다.
         Long insuranceContractId = insertInsuranceContract(
                 userId,
                 insuranceProductId,
                 drivingScoreSnapshotId,
+                planType,
                 insuranceStartedAt,
                 annualPremium,
                 now
         );
+        
         Long userInsuranceId = insertUserInsurance(
                 userId,
                 userVehicleId,
@@ -191,8 +196,9 @@ public class InsuranceOnboardingService {
         );
     }
 
-    private Long findOrCreateDrivingScoreSnapshot(Long userId, LocalDate snapshotDate, LocalDateTime now) {
-        Long existingId = jdbcTemplate.query(
+    // 실제 주행 점수 스냅샷이 있으면 반환, 없으면 null (더미 데이터 생성 안 함)
+    private Long findExistingDrivingScoreSnapshot(Long userId) {
+        return jdbcTemplate.query(
                 """
                 select id
                 from driving_score_snapshots
@@ -203,35 +209,19 @@ public class InsuranceOnboardingService {
                 rs -> rs.next() ? rs.getLong("id") : null,
                 userId
         );
-
-        if (existingId != null) {
-            return existingId;
-        }
-
-        return insertAndReturnId(
-                """
-                insert into driving_score_snapshots
-                (user_id, snapshot_date, score, created_at)
-                values (?, ?, ?, ?)
-                """,
-                ps -> {
-                    ps.setLong(1, userId);
-                    ps.setDate(2, Date.valueOf(snapshotDate));
-                    ps.setInt(3, DEFAULT_DRIVING_SCORE);
-                    ps.setTimestamp(4, Timestamp.valueOf(now));
-                }
-        );
     }
 
     private Long insertInsuranceContract(
             Long userId,
             Long insuranceProductId,
             Long drivingScoreSnapshotId,
+            String planType,
             LocalDate insuranceStartedAt,
             Integer annualPremium,
             LocalDateTime now
     ) {
         LocalDate endedDate = insuranceStartedAt.plusYears(1);
+        String finalPlanType = planType == null ? DEFAULT_CONTRACT_PLAN_TYPE : planType;
 
         return insertAndReturnId(
                 """
@@ -244,11 +234,11 @@ public class InsuranceOnboardingService {
                 ps -> {
                     ps.setLong(1, userId);
                     ps.setLong(2, insuranceProductId);
-                    ps.setLong(3, drivingScoreSnapshotId);
+                    ps.setObject(3, drivingScoreSnapshotId);
                     ps.setString(4, null);
                     ps.setString(5, null);
                     ps.setInt(6, 12);
-                    ps.setString(7, DEFAULT_CONTRACT_PLAN_TYPE);
+                    ps.setString(7, finalPlanType);
                     ps.setString(8, DEFAULT_CONTRACT_STATUS);
                     ps.setTimestamp(9, Timestamp.valueOf(insuranceStartedAt.atStartOfDay()));
                     ps.setTimestamp(10, Timestamp.valueOf(endedDate.atStartOfDay()));

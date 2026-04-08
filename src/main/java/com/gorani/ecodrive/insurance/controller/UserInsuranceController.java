@@ -31,6 +31,8 @@ public class UserInsuranceController {
                         i.getInsuranceProduct().getId(),
                         i.getInsuranceProduct().getProductName(),
                         i.getInsuranceContract().getId(),
+                        i.getInsuranceContract().getPlanType() != null ? i.getInsuranceContract().getPlanType().name() : null,
+                        i.getInsuranceContract().getBaseAmount(),
                         i.getInsuranceContract().getFinalAmount(),
                         i.getCreatedAt()
                 ))
@@ -52,6 +54,7 @@ public class UserInsuranceController {
                 insurance.getInsuranceProduct().getProductName(),
                 insurance.getInsuranceContract().getId(),
                 insurance.getInsuranceContract().getPlanType() != null ? insurance.getInsuranceContract().getPlanType().name() : null,
+                insurance.getInsuranceContract().getBaseAmount(),
                 insurance.getInsuranceContract().getFinalAmount(),
                 insurance.getInsuranceContract().getStartedAt(),
                 insurance.getInsuranceContract().getEndedAt(),
@@ -76,14 +79,16 @@ public class UserInsuranceController {
 
     public record InsuranceResponse(Long id, Long insuranceCompanyId, String companyName,
                                     Long insuranceProductId, String productName,
-                                    Long insuranceContractsId, Integer finalAmount,
+                                    Long insuranceContractsId, String planType, 
+                                    Integer baseAmount, Integer finalAmount,
                                     LocalDateTime createdAt) {}
     public record InsuranceListResponse(List<InsuranceResponse> insurances) {}
     public record InsuranceDetailResponse(Long id, Long insuranceCompanyId, String companyName,
                                           Long insuranceProductId, String productName,
                                           Long insuranceContractsId, String planType,
-                                          Integer finalAmount, LocalDateTime startedAt,
-                                          LocalDateTime endedAt, LocalDateTime createdAt) {}
+                                          Integer baseAmount, Integer finalAmount, 
+                                          LocalDateTime startedAt, LocalDateTime endedAt, 
+                                          LocalDateTime createdAt) {}
     public record ConfirmInsuranceRequest(Long insuranceContractsId, Long userVehicleId) {}
     public record ConfirmInsuranceResponse(Long id, String status, Integer finalAmount, LocalDateTime createdAt) {}
 }

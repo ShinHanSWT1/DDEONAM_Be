@@ -53,13 +53,15 @@ public class InsuranceContractService {
             throw new CustomException(ErrorCode.REQUIRED_COVERAGE_MISSING);
         }
 
-        // 5. 보험료 계산 (임시 고정값 - DrivingScoreSnapshot 연동 후 교체 예정)
+        // 5. 보험료 계산 (상품 base_amount × 나이보정 × 경력보정 × 안전점수 할인)
         int age = user.getAge() != null ? user.getAge() : 30;
         int score = 92; // TODO: DrivingScoreSnapshot에서 가져오기
         int experienceYears = 3; // TODO: 운전 경력 계산 로직 연동
-        int basePremium = discountCalculationService.calculateBasePremium(age);
-        int finalAmount = discountCalculationService.calculateFinalPremium(age, score, experienceYears);
-        int discountAmount = basePremium - finalAmount;
+        int baseAmount = product.getBaseAmount();
+        int finalAmount = discountCalculationService.calculateFinalPremium(baseAmount, age, score, experienceYears);
+        int adjustedBase = (int) (baseAmount * discountCalculationService.calculateAgeFactor(age)
+                * discountCalculationService.calculateExperienceFactor(experienceYears));
+        int discountAmount = adjustedBase - finalAmount;
         double discountRate = discountCalculationService.calculateScoreDiscountRate(age, score);
 
         // 6. 계약 생성
@@ -69,10 +71,10 @@ public class InsuranceContractService {
                 .phoneNumber(request.phoneNumber())
                 .address(request.address())
                 .contractPeriod(request.contractPeriod())
-                .planType(InsurancePlanType.valueOf(request.planType()))
+                .planType(parsePlanType(request.planType()))
                 .status(InsuranceContractStatus.PENDING)
                 .createdAt(LocalDateTime.now())
-                .baseAmount(basePremium)
+                .baseAmount(baseAmount)
                 .discountAmount(discountAmount)
                 .discountRate(BigDecimal.valueOf(discountRate))
                 .finalAmount(finalAmount)
@@ -82,7 +84,7 @@ public class InsuranceContractService {
     }
 
     public InsuranceContract getContract(Long contractId, Long userId) {
-        InsuranceContract contract = insuranceContractRepository.findById(contractId)
+        InsuranceContract contract = insuranceContractRepository.findByIdAndUser_Id(contractId, userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.INSURANCE_CONTRACT_NOT_FOUND));
         if (!contract.getUser().getId().equals(userId)) {
             throw new CustomException(ErrorCode.INSURANCE_CONTRACT_ACCESS_DENIED);
@@ -96,6 +98,14 @@ public class InsuranceContractService {
                     userId, InsuranceContractStatus.valueOf(status));
         }
         return insuranceContractRepository.findAllByUser_Id(userId);
+    }
+
+    private InsurancePlanType parsePlanType(String raw) {
+        try {
+            return InsurancePlanType.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new CustomException(ErrorCode.INVALID_PLAN_TYPE);
+        }
     }
 
     @Transactional

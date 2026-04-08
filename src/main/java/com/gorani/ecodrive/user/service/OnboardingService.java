@@ -50,12 +50,14 @@ public class OnboardingService {
     public InsuranceRegistrationResult registerInsurance(Long userId, InsuranceRegistrationRequest request) {
         String insuranceCompanyName = validateRequiredText(request.insuranceCompanyName());
         validatePositive(request.annualPremium());
+        validatePositive(request.age());
         validateRequiredId(request.userVehicleId());
         if (request.insuranceStartedAt() == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
         User user = getUser(userId);
+        user.updateAge(request.age());
 
         InsuranceOnboardingService.InsuranceRegistrationIds insuranceRegistrationIds =
                 insuranceOnboardingService.registerInsurance(
@@ -63,6 +65,7 @@ public class OnboardingService {
                         request.userVehicleId(),
                         insuranceCompanyName,
                         request.insuranceProductName(),
+                        request.planType(),
                         request.annualPremium(),
                         request.insuranceStartedAt(),
                         LocalDateTime.now()
@@ -138,8 +141,10 @@ public class OnboardingService {
             Long userVehicleId,
             String insuranceCompanyName,
             String insuranceProductName,
+            String planType,
             Integer annualPremium,
-            LocalDate insuranceStartedAt
+            LocalDate insuranceStartedAt,
+            Integer age
     ) {
     }
 

@@ -98,4 +98,10 @@ public class InsuranceContract {
     public void cancel() {
         this.status = InsuranceContractStatus.CANCELLED;
     }
+
+    public void activate() {
+        this.status = InsuranceContractStatus.ACTIVE;
+        this.startedAt = LocalDateTime.now();
+        this.endedAt = this.startedAt.plusMonths(this.contractPeriod != null ? this.contractPeriod : 12);
+    }
 }
