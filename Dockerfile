@@ -21,7 +21,12 @@ RUN ./gradlew clean bootJar -x test --no-daemon
 ## Run Stage ##
 FROM registry-gorani.lab.terminal-lab.kr/base/eclipse-temurin:17-jre
 
+# python 설치
+RUN apt-get update && apt-get install -y python3 && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
+
+COPY scripts/ /app/scripts/
 
 # 업로드 디렉토리 생성
 RUN mkdir -p /app/uploads
