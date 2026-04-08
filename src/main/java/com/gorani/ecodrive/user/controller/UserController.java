@@ -55,7 +55,7 @@ public class UserController {
         );
     }
 
-    @PostMapping("/me/insurances")
+    @PostMapping("/me/onboarding/insurances")
     public ApiResponse<OnboardingService.InsuranceRegistrationResult> registerMyInsurance(
             @AuthenticationPrincipal CustomUserPrincipal principal,
             @RequestBody OnboardingService.InsuranceRegistrationRequest request
