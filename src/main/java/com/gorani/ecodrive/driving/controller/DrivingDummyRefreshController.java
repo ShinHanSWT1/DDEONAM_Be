@@ -1,10 +1,10 @@
 package com.gorani.ecodrive.driving.controller;
 
 import com.gorani.ecodrive.common.response.ApiResponse;
-import com.gorani.ecodrive.driving.dto.DummyDrivingAutomationResult;
-import com.gorani.ecodrive.driving.dto.DummyDrivingRefreshResult;
-import com.gorani.ecodrive.driving.service.DrivingDummyAutomationService;
-import com.gorani.ecodrive.driving.service.DrivingDummyRefreshService;
+import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingAutomationResult;
+import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingRefreshResult;
+import com.gorani.ecodrive.driving.service.ingestion.DrivingDummyAutomationService;
+import com.gorani.ecodrive.driving.service.ingestion.DrivingDummyRefreshService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

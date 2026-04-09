@@ -1,10 +1,10 @@
-package com.gorani.ecodrive.driving.service;
+package com.gorani.ecodrive.driving.service.ingestion;
 
 import com.gorani.ecodrive.common.exception.CustomException;
 import com.gorani.ecodrive.common.exception.ErrorCode;
-import com.gorani.ecodrive.driving.dto.DummyDrivingBatch;
-import com.gorani.ecodrive.driving.dto.DummyDrivingEventPayload;
-import com.gorani.ecodrive.driving.dto.DummyDrivingSessionPayload;
+import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingBatch;
+import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingEventPayload;
+import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingSessionPayload;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -27,7 +27,10 @@ public class DrivingIngestionService {
 
     private final JdbcTemplate jdbcTemplate;
 
+    // JSON으로부터 읽은 DTO를 실제 DB에 넣음
     public IngestionSummary ingest(DummyDrivingBatch batch) {
+
+        // 배치 파일이 비어있는지, 세션이 없는지 확인
         if (batch.sessions() == null || batch.sessions().isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
@@ -39,12 +42,16 @@ public class DrivingIngestionService {
         for (DummyDrivingSessionPayload session : batch.sessions()) {
             validate(session);
 
+            // 이미 넣은 주행이면 중복 insert 하지 않고 넘어감
             if (existsByExternalKey(session.externalKey())) {
                 continue;
             }
 
+            // 세션을 먼저 저장하고, 그 세션 id로 이벤트를 연결해서 넣음
             Long sessionId = insertSession(session);
             insertedSessions++;
+
+            // 나중에 점수/탄소 재계산할 날짜를 여기서 같이 모아둠
             affectedUserDates.add(new UserDateKey(session.userId(), session.sessionDate()));
 
             List<DummyDrivingEventPayload> events = session.events() == null ? List.of() : session.events();
@@ -57,6 +64,7 @@ public class DrivingIngestionService {
         return new IngestionSummary(insertedSessions, insertedEvents, new ArrayList<>(affectedUserDates));
     }
 
+    // external_key 기준으로 이미 저장된 세션인지 확인
     private boolean existsByExternalKey(String externalKey) {
         Integer count = jdbcTemplate.queryForObject(
                 "select count(*) from driving_sessions where external_key = ?",
@@ -66,6 +74,7 @@ public class DrivingIngestionService {
         return count != null && count > 0;
     }
 
+    // 주행 세션 1건을 driving_sessions 테이블에 저장
     private Long insertSession(DummyDrivingSessionPayload session) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         LocalDateTime now = LocalDateTime.now();
@@ -109,6 +118,7 @@ public class DrivingIngestionService {
         return key.longValue();
     }
 
+    // 세션에 속한 이벤트 1건을 driving_events 테이블에 저장
     private void insertEvent(Long sessionId, Long userId, DummyDrivingEventPayload event) {
         jdbcTemplate.update("""
                         insert into driving_events (
@@ -131,6 +141,7 @@ public class DrivingIngestionService {
         );
     }
 
+    // DB에 넣기 전에 필수값이 다 있는지 확인
     private void validate(DummyDrivingSessionPayload session) {
         if (session.externalKey() == null
                 || session.userId() == null

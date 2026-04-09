@@ -71,4 +71,8 @@ public class User extends BaseEntity {
     public void updateOnboardingCompleted(boolean isOnboardingCompleted) {
         this.isOnboardingCompleted = isOnboardingCompleted;
     }
+
+    public void updateAge(Integer age) {
+        this.age = age;
+    }
 }

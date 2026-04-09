@@ -1,17 +1,13 @@
 package com.gorani.ecodrive.insurance.domain;
 
-import com.gorani.ecodrive.vehicle.domain.UserVehicle;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import com.gorani.ecodrive.user.domain.User;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "user_insurances")
@@ -24,6 +20,38 @@ public class UserInsurance {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_vehicle_id", nullable = false)
-    private UserVehicle userVehicle;
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    // DB 레벨에서 user_vehicles(id)에 FK 제약이 걸려 있음 (V1__init.sql 참고)
+    // 모듈 경계 유지를 위해 @ManyToOne 대신 Long으로 관리
+    @Column(name = "user_vehicle_id", nullable = false)
+    private Long userVehicleId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "insurance_company_id", nullable = false)
+    private InsuranceCompany insuranceCompany;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "insurance_product_id")
+    private InsuranceProduct insuranceProduct;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "insurance_contracts_id", nullable = false)
+    private InsuranceContract insuranceContract;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Builder
+    public UserInsurance(User user, Long userVehicleId, InsuranceCompany insuranceCompany,
+                         InsuranceProduct insuranceProduct, InsuranceContract insuranceContract,
+                         LocalDateTime createdAt) {
+        this.user = user;
+        this.userVehicleId = userVehicleId;
+        this.insuranceCompany = insuranceCompany;
+        this.insuranceProduct = insuranceProduct;
+        this.insuranceContract = insuranceContract;
+        this.createdAt = createdAt;
+    }
 }

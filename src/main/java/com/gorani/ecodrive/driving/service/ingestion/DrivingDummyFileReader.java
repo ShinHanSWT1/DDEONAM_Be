@@ -1,9 +1,9 @@
-package com.gorani.ecodrive.driving.service;
+package com.gorani.ecodrive.driving.service.ingestion;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.gorani.ecodrive.driving.dto.DummyDrivingBatch;
+import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingBatch;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;

@@ -62,12 +62,10 @@ app:
   driving-dummy:
     base-dir: ${DRIVING_DUMMY_BASE_DIR:generated/driving}
     refresh-cron: ${DRIVING_DUMMY_REFRESH_CRON:0 0 * * * *}
-    generation-cron: ${DRIVING_DUMMY_GENERATION_CRON:0 0 6 * * *}
+    generation-cron: ${DRIVING_DUMMY_GENERATION_CRON:0 0 * * * *}
     generation-enabled: ${DRIVING_DUMMY_GENERATION_ENABLED:true}
     python-command: ${DRIVING_DUMMY_PYTHON_COMMAND:python3}
     script-path: ${DRIVING_DUMMY_SCRIPT_PATH:scripts/generate_driving_dummy_json.py}
-    default-sessions-per-user: ${DRIVING_DUMMY_DEFAULT_SESSIONS_PER_USER:2}
-    extra-session-probability: ${DRIVING_DUMMY_EXTRA_SESSION_PROBABILITY:0.2}
     target-users: ${DRIVING_DUMMY_TARGET_USERS:1:1}
 
 cloud:
