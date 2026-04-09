@@ -118,4 +118,16 @@ public class UserMission {
         userMission.slotNo = slotNo;
         return userMission;
     }
+
+    public void applyProgress(BigDecimal currentValue, BigDecimal progressRate, boolean achieved) {
+        // 만료된 미션은 상태/진행도 변경 대상에서 제외한다.
+        if (this.status == MissionStatus.EXPIRED) {
+            return;
+        }
+        this.currentValue = currentValue;
+        this.progressRate = progressRate;
+        if (achieved && this.status == MissionStatus.IN_PROGRESS) {
+            this.status = MissionStatus.COMPLETED;
+        }
+    }
 }
