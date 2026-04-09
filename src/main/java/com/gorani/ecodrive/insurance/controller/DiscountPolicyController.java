@@ -2,7 +2,10 @@ package com.gorani.ecodrive.insurance.controller;
 
 import com.gorani.ecodrive.common.response.ApiResponse;
 import com.gorani.ecodrive.insurance.service.DiscountCalculationService;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -10,15 +13,16 @@ import java.math.BigDecimal;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/insurance/discount-policies")
+@Validated
 public class DiscountPolicyController {
 
     private final DiscountCalculationService discountCalculationService;
 
     @GetMapping("/calculate")
     public ApiResponse<?> calculate(
-            @RequestParam int age,
-            @RequestParam int score,
-            @RequestParam int experienceYears
+            @RequestParam @Min(0) @Max(150) int age,
+            @RequestParam @Min(0) @Max(100) int score,
+            @RequestParam @Min(0) int experienceYears
     ) {
         double ageFactor = discountCalculationService.calculateAgeFactor(age);
         double experienceFactor = discountCalculationService.calculateExperienceFactor(experienceYears);

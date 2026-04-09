@@ -30,7 +30,7 @@ public class UserInsuranceService {
 
     public UserInsurance getMyInsurance(Long insuranceId, Long userId) {
         return userInsuranceRepository.findByIdAndUser_Id(insuranceId, userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.INSURANCE_CONTRACT_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_INSURANCE_NOT_FOUND));
     }
 
     @Transactional
@@ -40,8 +40,13 @@ public class UserInsuranceService {
 
         InsuranceContract contract = insuranceContractService.getContract(contractId, userId);
 
-        if (contract.getStatus() != InsuranceContractStatus.PENDING) {
+        InsuranceContractStatus status = contract.getStatus();
+        if (status == InsuranceContractStatus.ACTIVE) {
+            throw new CustomException(ErrorCode.CONTRACT_ALREADY_ACTIVE);
+        } else if (status == InsuranceContractStatus.CANCELLED) {
             throw new CustomException(ErrorCode.ALREADY_CANCELLED);
+        } else if (status != InsuranceContractStatus.PENDING) {
+            throw new CustomException(ErrorCode.INVALID_CONTRACT_STATUS);
         }
 
         contract.activate();

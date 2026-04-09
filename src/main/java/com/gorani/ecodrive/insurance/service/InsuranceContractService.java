@@ -2,6 +2,7 @@ package com.gorani.ecodrive.insurance.service;
 
 import com.gorani.ecodrive.common.exception.CustomException;
 import com.gorani.ecodrive.common.exception.ErrorCode;
+import com.gorani.ecodrive.driving.service.DrivingQueryService;
 import com.gorani.ecodrive.insurance.controller.InsuranceContractController.CreateContractRequest;
 import com.gorani.ecodrive.insurance.domain.*;
 import com.gorani.ecodrive.insurance.repository.InsuranceCoverageRepository;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Service
@@ -27,6 +29,7 @@ public class InsuranceContractService {
     private final InsuranceCoverageRepository insuranceCoverageRepository;
     private final DiscountCalculationService discountCalculationService;
     private final UserRepository userRepository;
+    private final DrivingQueryService drivingQueryService;
 
     @Transactional
     public InsuranceContract createContract(Long userId, CreateContractRequest request) {
@@ -43,20 +46,28 @@ public class InsuranceContractService {
             throw new CustomException(ErrorCode.INSURANCE_PRODUCT_NOT_ON_SALE);
         }
 
-        // 4. 필수 특약 확인
+        // 4. planType 파싱
+        InsurancePlanType planType = parsePlanType(request.planType());
+
+        // 5. 필수 특약 확인 (planType 기준으로 검증)
         List<InsuranceCoverage> requiredCoverages = insuranceCoverageRepository
-                .findAllByInsuranceProduct_IdAndIsRequiredAndStatus(
-                        product.getId(), true, InsuranceCoverageStatus.ACTIVE);
+                .findAllByInsuranceProduct_IdAndPlanTypeAndStatus(
+                        product.getId(), planType, InsuranceCoverageStatus.ACTIVE)
+                .stream()
+                .filter(InsuranceCoverage::getIsRequired)
+                .toList();
         boolean allRequiredSelected = requiredCoverages.stream()
                 .allMatch(c -> request.selectedCoverageIds().contains(c.getId()));
         if (!allRequiredSelected) {
             throw new CustomException(ErrorCode.REQUIRED_COVERAGE_MISSING);
         }
 
-        // 5. 보험료 계산 (상품 base_amount × 나이보정 × 경력보정 × 안전점수 할인)
+        // 6. 보험료 계산 (상품 base_amount × 나이보정 × 경력보정 × 안전점수 할인)
         int age = user.getAge() != null ? user.getAge() : 30;
-        int score = 92; // TODO: DrivingScoreSnapshot에서 가져오기
-        int experienceYears = 3; // TODO: 운전 경력 계산 로직 연동
+        int score = java.util.Optional.ofNullable(drivingQueryService.getLatestScore(userId).score()).orElse(0);
+        int experienceYears = insuranceContractRepository.findFirstByUser_IdOrderByStartedAtAsc(userId)
+                .map(c -> c.getStartedAt() != null ? (int) ChronoUnit.YEARS.between(c.getStartedAt(), LocalDateTime.now()) : 0)
+                .orElse(0);
         int baseAmount = product.getBaseAmount();
         int finalAmount = discountCalculationService.calculateFinalPremium(baseAmount, age, score, experienceYears);
         int adjustedBase = (int) (baseAmount * discountCalculationService.calculateAgeFactor(age)
@@ -64,14 +75,14 @@ public class InsuranceContractService {
         int discountAmount = adjustedBase - finalAmount;
         double discountRate = discountCalculationService.calculateScoreDiscountRate(age, score);
 
-        // 6. 계약 생성
+        // 7. 계약 생성
         InsuranceContract contract = InsuranceContract.builder()
                 .user(user)
                 .insuranceProduct(product)
                 .phoneNumber(request.phoneNumber())
                 .address(request.address())
                 .contractPeriod(request.contractPeriod())
-                .planType(parsePlanType(request.planType()))
+                .planType(planType)
                 .status(InsuranceContractStatus.PENDING)
                 .createdAt(LocalDateTime.now())
                 .baseAmount(baseAmount)
@@ -95,9 +106,17 @@ public class InsuranceContractService {
     public List<InsuranceContract> getMyContracts(Long userId, String status) {
         if (status != null) {
             return insuranceContractRepository.findAllByUser_IdAndStatus(
-                    userId, InsuranceContractStatus.valueOf(status));
+                    userId, parseStatus(status));
         }
         return insuranceContractRepository.findAllByUser_Id(userId);
+    }
+
+    private InsuranceContractStatus parseStatus(String raw) {
+        try {
+            return InsuranceContractStatus.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
     }
 
     private InsurancePlanType parsePlanType(String raw) {

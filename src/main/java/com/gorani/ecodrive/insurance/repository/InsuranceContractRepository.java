@@ -18,4 +18,6 @@ public interface InsuranceContractRepository extends JpaRepository<InsuranceCont
 
     @EntityGraph(attributePaths = {"insuranceProduct", "insuranceProduct.insuranceCompany", "user"})
     Optional<InsuranceContract> findByIdAndUser_Id(Long id, Long userId);
+
+    Optional<InsuranceContract> findFirstByUser_IdOrderByStartedAtAsc(Long userId);
 }

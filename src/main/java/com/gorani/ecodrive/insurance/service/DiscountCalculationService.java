@@ -7,6 +7,7 @@ public class DiscountCalculationService {
 
     // 나이별 보정계수 (base_amount에 곱함)
     public double calculateAgeFactor(int age) {
+        if (age < 20) throw new IllegalArgumentException("20세 미만은 보험 가입이 제한됩니다.");
         if (age >= 20 && age <= 25) return 1.30;   // 20~25세 30% 할증
         if (age >= 26 && age <= 30) return 1.10;   // 26~30세 10% 할증
         if (age >= 31 && age <= 40) return 1.00;   // 31~40세 기본

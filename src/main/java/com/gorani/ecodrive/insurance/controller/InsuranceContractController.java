@@ -4,6 +4,11 @@ import com.gorani.ecodrive.common.response.ApiResponse;
 import com.gorani.ecodrive.common.security.CustomUserPrincipal;
 import com.gorani.ecodrive.insurance.domain.InsuranceContract;
 import com.gorani.ecodrive.insurance.service.InsuranceContractService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -69,7 +74,7 @@ public class InsuranceContractController {
 
     @PostMapping("/contracts")
     public ApiResponse<?> createContract(
-            @RequestBody CreateContractRequest request,
+            @RequestBody @Valid CreateContractRequest request,
             @AuthenticationPrincipal CustomUserPrincipal principal
     ) {
         InsuranceContract contract = insuranceContractService.createContract(principal.getUserId(), request);
@@ -116,12 +121,12 @@ public class InsuranceContractController {
     public record ContractListResponse(List<ContractResponse> contracts) {}
     public record CancelResponse(Long id, String status) {}
     public record CreateContractRequest(
-            Long insuranceProductId,
-            String phoneNumber,
-            String address,
-            Integer contractPeriod,
-            String planType,
-            List<Long> selectedCoverageIds
+            @NotNull Long insuranceProductId,
+            @NotBlank String phoneNumber,
+            @NotBlank String address,
+            @NotNull @Min(1) Integer contractPeriod,
+            @NotBlank String planType,
+            @NotEmpty List<Long> selectedCoverageIds
     ) {}
 
 }

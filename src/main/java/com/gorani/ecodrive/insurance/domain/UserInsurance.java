@@ -23,6 +23,8 @@ public class UserInsurance {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    // DB 레벨에서 user_vehicles(id)에 FK 제약이 걸려 있음 (V1__init.sql 참고)
+    // 모듈 경계 유지를 위해 @ManyToOne 대신 Long으로 관리
     @Column(name = "user_vehicle_id", nullable = false)
     private Long userVehicleId;
 

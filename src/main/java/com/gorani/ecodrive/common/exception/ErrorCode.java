@@ -17,10 +17,13 @@ public enum ErrorCode {
     INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "COMMON_002", "올바르지 않은 입력값입니다."),
     INVALID_PLAN_TYPE(HttpStatus.BAD_REQUEST, "COMMON_003", "올바르지 않은 플랜 타입입니다."),
     INSURANCE_CONTRACT_NOT_FOUND(HttpStatus.NOT_FOUND, "INSURANCE_003", "해당 보험 계약을 찾을 수 없습니다."),
+    USER_INSURANCE_NOT_FOUND(HttpStatus.NOT_FOUND, "INSURANCE_008", "해당 보험 내역을 찾을 수 없습니다."),
     INSURANCE_CONTRACT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "INSURANCE_004", "접근 권한이 없습니다."),
     INSURANCE_PRODUCT_NOT_ON_SALE(HttpStatus.BAD_REQUEST, "INSURANCE_005", "현재 판매 중이 아닌 상품입니다."),
     REQUIRED_COVERAGE_MISSING(HttpStatus.BAD_REQUEST, "INSURANCE_006", "필수 특약이 선택되지 않았습니다."),
     ALREADY_CANCELLED(HttpStatus.BAD_REQUEST, "INSURANCE_007", "이미 해지된 계약입니다."),
+    CONTRACT_ALREADY_ACTIVE(HttpStatus.BAD_REQUEST, "INSURANCE_009", "이미 활성화된 계약입니다."),
+    INVALID_CONTRACT_STATUS(HttpStatus.BAD_REQUEST, "INSURANCE_010", "처리할 수 없는 계약 상태입니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_001", "서버 내부 오류가 발생했습니다.");
 
     private final HttpStatus status;
