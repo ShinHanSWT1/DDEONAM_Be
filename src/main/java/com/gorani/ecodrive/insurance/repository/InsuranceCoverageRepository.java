@@ -12,4 +12,5 @@ public interface InsuranceCoverageRepository extends JpaRepository<InsuranceCove
     List<InsuranceCoverage> findAllByInsuranceProduct_IdAndPlanTypeAndStatus(Long productId, InsurancePlanType planType, InsuranceCoverageStatus status);
     List<InsuranceCoverage> findAllByInsuranceProduct_IdAndCategoryAndStatus(Long productId, String category, InsuranceCoverageStatus status);
     List<InsuranceCoverage> findAllByInsuranceProduct_IdAndPlanTypeAndCategoryAndStatus(Long productId, InsurancePlanType planType, String category, InsuranceCoverageStatus status);
+    List<InsuranceCoverage> findAllByInsuranceProduct_IdAndIsRequiredAndStatus(Long productId, Boolean isRequired, InsuranceCoverageStatus status);
 }

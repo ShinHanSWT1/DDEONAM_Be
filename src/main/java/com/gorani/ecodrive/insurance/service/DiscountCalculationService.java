@@ -5,18 +5,19 @@ import org.springframework.stereotype.Service;
 @Service
 public class DiscountCalculationService {
 
-    // 보험료
-    public int calculateBasePremium(int age) {
-        if (age >= 20 && age <= 25) return 1_100_000;
-        if (age >= 26 && age <= 30) return 900_000;
-        if (age >= 31 && age <= 40) return 600_000;
-        return 400_000; // 41세 이상
+    // 나이별 보정계수 (base_amount에 곱함)
+    public double calculateAgeFactor(int age) {
+        if (age < 20) throw new IllegalArgumentException("20세 미만은 보험 가입이 제한됩니다.");
+        if (age >= 20 && age <= 25) return 1.30;   // 20~25세 30% 할증
+        if (age >= 26 && age <= 30) return 1.10;   // 26~30세 10% 할증
+        if (age >= 31 && age <= 40) return 1.00;   // 31~40세 기본
+        return 0.90;                                 // 41세 이상 10% 할인
     }
 
-    // 운전 경력
+    // 운전 경력 보정계수
     public double calculateExperienceFactor(int experienceYears) {
         if (experienceYears < 1) return 1.30;   // 1년 미만 30% 할증
-        if (experienceYears < 3) return 1.105;  // 1~3년 할증에서 15% 할인
+        if (experienceYears < 3) return 1.105;  // 1~3년 10.5% 할증
         return 1.00;                             // 3년 이상 기본
     }
 
@@ -28,10 +29,10 @@ public class DiscountCalculationService {
         return 0.0; // 81점 미만 할인 없음
     }
 
-    // 최종 보험료 계산
-    public int calculateFinalPremium(int age, int score, int experienceYears) {
-        int basePremium = calculateBasePremium(age);
-        double afterExperience = basePremium * calculateExperienceFactor(experienceYears);
+    // 최종 보험료 계산 (상품 base_amount 기준)
+    public int calculateFinalPremium(int baseAmount, int age, int score, int experienceYears) {
+        double afterAge = baseAmount * calculateAgeFactor(age);
+        double afterExperience = afterAge * calculateExperienceFactor(experienceYears);
         double discountRate = calculateScoreDiscountRate(age, score);
         return (int) (afterExperience * (1 - discountRate));
     }
