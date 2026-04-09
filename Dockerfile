@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y python3 && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY scripts/ /app/scripts/
+COPY scripts /app/scripts/
 
 # 업로드 디렉토리 생성
 RUN mkdir -p /app/uploads
