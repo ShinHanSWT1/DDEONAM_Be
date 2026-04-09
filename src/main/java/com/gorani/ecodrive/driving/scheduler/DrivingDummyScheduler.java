@@ -1,7 +1,7 @@
 package com.gorani.ecodrive.driving.scheduler;
 
-import com.gorani.ecodrive.driving.service.DrivingDummyAutomationService;
-import com.gorani.ecodrive.driving.service.DrivingDummyRefreshService;
+import com.gorani.ecodrive.driving.service.ingestion.DrivingDummyAutomationService;
+import com.gorani.ecodrive.driving.service.ingestion.DrivingDummyRefreshService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

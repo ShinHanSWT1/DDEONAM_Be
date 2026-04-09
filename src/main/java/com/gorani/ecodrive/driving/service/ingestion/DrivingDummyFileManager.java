@@ -1,4 +1,4 @@
-package com.gorani.ecodrive.driving.service;
+package com.gorani.ecodrive.driving.service.ingestion;
 
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;

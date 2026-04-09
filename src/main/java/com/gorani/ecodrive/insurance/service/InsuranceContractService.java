@@ -2,7 +2,7 @@ package com.gorani.ecodrive.insurance.service;
 
 import com.gorani.ecodrive.common.exception.CustomException;
 import com.gorani.ecodrive.common.exception.ErrorCode;
-import com.gorani.ecodrive.driving.service.DrivingQueryService;
+import com.gorani.ecodrive.driving.service.query.DrivingQueryService;
 import com.gorani.ecodrive.insurance.controller.InsuranceContractController.CreateContractRequest;
 import com.gorani.ecodrive.insurance.domain.*;
 import com.gorani.ecodrive.insurance.repository.InsuranceCoverageRepository;
