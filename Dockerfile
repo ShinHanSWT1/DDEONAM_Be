@@ -1,5 +1,5 @@
 ## Build Stage ##
-FROM docker.io/library/eclipse-temurin:17-jdk AS builder
+FROM registry-gorani.lab.terminal-lab.kr/base/eclipse-temurin:17-jdk AS builder
 
 WORKDIR /app
 
@@ -16,12 +16,17 @@ COPY src src
 RUN chmod +x ./gradlew
 
 # 테스트는 일단 제외하고 빌드
-RUN ./gradlew clean bootJar -x test
+RUN ./gradlew clean bootJar -x test --no-daemon
 
 ## Run Stage ##
-FROM docker.io/library/eclipse-temurin:17-jre
+FROM registry-gorani.lab.terminal-lab.kr/base/eclipse-temurin:17-jre
+
+# python 설치
+RUN apt-get update && apt-get install -y python3 && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
+COPY scripts/ /app/scripts/
 
 # 업로드 디렉토리 생성
 RUN mkdir -p /app/uploads

@@ -30,7 +30,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public boolean calculateOnboardingCompleted(Long userId) {
         boolean hasVehicle = userVehicleRepository.existsByUserId(userId);
-        boolean hasLinkedInsurance = userInsuranceRepository.existsByUserVehicleUserId(userId);
+        boolean hasLinkedInsurance = userInsuranceRepository.existsByUser_Id(userId);
         return hasVehicle && hasLinkedInsurance;
     }
 

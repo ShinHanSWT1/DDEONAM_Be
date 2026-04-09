@@ -30,7 +30,8 @@ public class UserController {
                 user.getNickname(),
                 user.getProfileImageUrl(),
                 user.getRole().name(),
-                isOnboardingCompleted
+                isOnboardingCompleted,
+                user.getAge()
         ));
     }
 
@@ -40,7 +41,8 @@ public class UserController {
             String nickname,
             String profileImageUrl,
             String role,
-            boolean isOnboardingCompleted
+            boolean isOnboardingCompleted,
+            Integer age
     ) {
     }
 
@@ -55,7 +57,7 @@ public class UserController {
         );
     }
 
-    @PostMapping("/me/insurances")
+    @PostMapping("/me/onboarding/insurances")
     public ApiResponse<OnboardingService.InsuranceRegistrationResult> registerMyInsurance(
             @AuthenticationPrincipal CustomUserPrincipal principal,
             @RequestBody OnboardingService.InsuranceRegistrationRequest request
