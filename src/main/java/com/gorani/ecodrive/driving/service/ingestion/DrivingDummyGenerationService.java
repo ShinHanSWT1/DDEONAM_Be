@@ -108,18 +108,20 @@ public class DrivingDummyGenerationService {
 
     private List<GenerationTarget> resolveAllActiveTargets() {
         List<GenerationTarget> targets = jdbcTemplate.query("""
-                        select uv.user_id, uv.id as user_vehicle_id
-                        from user_vehicles uv
-                        where uv.status = 'ACTIVE'
-                          and uv.id = (
-                              select uv2.id
-                              from user_vehicles uv2
-                              where uv2.user_id = uv.user_id
-                                and uv2.status = 'ACTIVE'
-                              order by uv2.updated_at desc, uv2.id desc
-                              limit 1
-                          )
-                        order by uv.user_id asc
+                        select ranked.user_id, ranked.user_vehicle_id
+                        from (
+                            select
+                                uv.user_id,
+                                uv.id as user_vehicle_id,
+                                row_number() over (
+                                    partition by uv.user_id
+                                    order by uv.updated_at desc, uv.id desc
+                                ) as rn
+                            from user_vehicles uv
+                            where uv.status = 'ACTIVE'
+                        ) ranked
+                        where ranked.rn = 1
+                        order by ranked.user_id asc
                         """,
                 (rs, rowNum) -> new GenerationTarget(
                         rs.getLong("user_id"),
@@ -128,7 +130,7 @@ public class DrivingDummyGenerationService {
         );
 
         if (targets.isEmpty()) {
-            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+            throw new CustomException(ErrorCode.NO_ACTIVE_VEHICLE);
         }
         return targets;
     }
