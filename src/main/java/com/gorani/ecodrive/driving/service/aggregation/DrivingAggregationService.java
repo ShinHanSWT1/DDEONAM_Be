@@ -1,6 +1,6 @@
-package com.gorani.ecodrive.driving.service;
+package com.gorani.ecodrive.driving.service.aggregation;
 
-import com.gorani.ecodrive.driving.service.DrivingIngestionService.UserDateKey;
+import com.gorani.ecodrive.driving.service.ingestion.DrivingIngestionService.UserDateKey;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;

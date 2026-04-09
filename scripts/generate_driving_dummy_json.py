@@ -16,14 +16,38 @@ class VehicleProfile:
 
 
 DRIVER_STYLES = ("ECO", "NORMAL", "AGGRESSIVE")
-EVENT_TYPES = ("RAPID_ACCEL", "HARD_BRAKE", "OVERSPEED")
 
 
 def choose_driver_style() -> str:
     return random.choices(DRIVER_STYLES, weights=[0.45, 0.45, 0.1], k=1)[0]
 
 
-def resolve_vehicle_profile(style: str) -> VehicleProfile:
+def normalize_fuel_type(fuel_type: str | None) -> str:
+    if not fuel_type:
+        return "GASOLINE"
+    normalized = fuel_type.strip().upper()
+    if normalized in {"DIESEL", "HYBRID"}:
+        return normalized
+    return "GASOLINE"
+
+
+def normalize_body_type(body_type: str | None) -> str:
+    if not body_type:
+        return "MIDSIZE"
+    normalized = body_type.strip().upper()
+    if "SMALL" in normalized:
+        return "SMALL"
+    if "LARGE" in normalized or "SUV" in normalized:
+        return "LARGE"
+    return "MIDSIZE"
+
+
+def resolve_vehicle_profile(style: str, fuel_type: str | None = None, body_type: str | None = None) -> VehicleProfile:
+    if fuel_type or body_type:
+        return VehicleProfile(
+            normalize_body_type(body_type),
+            normalize_fuel_type(fuel_type),
+        )
     if style == "ECO":
         return VehicleProfile("MIDSIZE", random.choice(["HYBRID", "GASOLINE"]))
     if style == "AGGRESSIVE":
@@ -37,6 +61,42 @@ def generate_event_counts(style: str) -> tuple[int, int, int, int]:
     if style == "AGGRESSIVE":
         return random.randint(1, 3), random.randint(1, 3), random.randint(0, 2), random.randint(3, 7)
     return random.randint(0, 2), random.randint(0, 1), random.randint(0, 1), random.randint(2, 5)
+
+
+def calculate_distance_factor(profile: VehicleProfile) -> float:
+    size_factor = {"SMALL": 0.9, "MIDSIZE": 1.0, "LARGE": 1.12}[profile.vehicle_size]
+    fuel_factor = {"GASOLINE": 1.0, "DIESEL": 1.08, "HYBRID": 0.95}[profile.fuel_type]
+    return size_factor * fuel_factor
+
+
+def calculate_idle_factor(profile: VehicleProfile) -> float:
+    size_factor = {"SMALL": 0.9, "MIDSIZE": 1.0, "LARGE": 1.1}[profile.vehicle_size]
+    fuel_factor = {"GASOLINE": 1.0, "DIESEL": 1.1, "HYBRID": 0.7}[profile.fuel_type]
+    return size_factor * fuel_factor
+
+
+def calculate_speed_bonus(profile: VehicleProfile) -> float:
+    size_bonus = {"SMALL": 2.0, "MIDSIZE": 0.0, "LARGE": -2.0}[profile.vehicle_size]
+    fuel_bonus = {"GASOLINE": 0.0, "DIESEL": 3.0, "HYBRID": -1.0}[profile.fuel_type]
+    return size_bonus + fuel_bonus
+
+
+def adjust_event_counts_for_profile(profile: VehicleProfile, rapid_accel_count: int, hard_brake_count: int,
+                                    overspeed_count: int, fallback_idle: int) -> tuple[int, int, int, int]:
+    if profile.vehicle_size == "LARGE":
+        hard_brake_count += 1
+        fallback_idle += 1
+    elif profile.vehicle_size == "SMALL":
+        rapid_accel_count = max(rapid_accel_count - 1, 0)
+
+    if profile.fuel_type == "HYBRID":
+        rapid_accel_count = max(rapid_accel_count - 1, 0)
+        hard_brake_count = max(hard_brake_count - 1, 0)
+        fallback_idle = max(fallback_idle - 1, 1)
+    elif profile.fuel_type == "DIESEL":
+        overspeed_count += 1 if random.random() < 0.3 else 0
+
+    return rapid_accel_count, hard_brake_count, overspeed_count, fallback_idle
 
 
 def calculate_safety_score(rapid_accel_count: int, hard_brake_count: int, overspeed_count: int) -> int:
@@ -110,19 +170,23 @@ def build_events(started_at: datetime, rapid_accel_count: int, hard_brake_count:
     return events
 
 
-def build_session_payload(user_id: int, user_vehicle_id: int, run_at: datetime, sequence: int) -> dict:
+def build_session_payload(user_id: int, user_vehicle_id: int, run_at: datetime,
+                          fuel_type: str | None = None, body_type: str | None = None) -> dict:
     style = choose_driver_style()
-    profile = resolve_vehicle_profile(style)
+    profile = resolve_vehicle_profile(style, fuel_type, body_type)
     driving_time_minutes = random.randint(20, 70)
-    idling_time_minutes = random.randint(1, 8)
-    distance_km = round(random.uniform(6, 35), 2)
-    average_speed = round(distance_km / (driving_time_minutes / 60), 2)
-    max_speed = round(max(average_speed + random.uniform(15, 35), average_speed), 2)
+    base_idle_minutes = random.randint(1, 8)
+    distance_km = round(random.uniform(6, 35) * calculate_distance_factor(profile), 2)
     started_at = run_at.replace(minute=0, second=0, microsecond=0) - timedelta(hours=random.randint(1, 8))
     started_at += timedelta(minutes=random.randint(0, 50))
-    ended_at = started_at + timedelta(minutes=driving_time_minutes)
     rapid_accel_count, hard_brake_count, overspeed_count, fallback_idle = generate_event_counts(style)
-    idling_time_minutes = max(idling_time_minutes, fallback_idle)
+    rapid_accel_count, hard_brake_count, overspeed_count, fallback_idle = adjust_event_counts_for_profile(
+        profile, rapid_accel_count, hard_brake_count, overspeed_count, fallback_idle
+    )
+    idling_time_minutes = max(round(base_idle_minutes * calculate_idle_factor(profile)), fallback_idle)
+    average_speed = round(max((distance_km / (driving_time_minutes / 60)) + calculate_speed_bonus(profile), 8.0), 2)
+    max_speed = round(max(average_speed + random.uniform(15, 35), average_speed), 2)
+    ended_at = started_at + timedelta(minutes=driving_time_minutes)
 
     safety_score = calculate_safety_score(rapid_accel_count, hard_brake_count, overspeed_count)
     eco_score = calculate_eco_score(idling_time_minutes, driving_time_minutes, rapid_accel_count, hard_brake_count)
@@ -135,7 +199,7 @@ def build_session_payload(user_id: int, user_vehicle_id: int, run_at: datetime, 
     reward_point = calculate_reward_point(carbon_reduction_kg)
 
     return {
-        "external_key": f"user-{user_id}-{started_at.strftime('%Y%m%d%H%M%S')}-{sequence}",
+        "external_key": f"user-{user_id}-{started_at.strftime('%Y%m%d%H%M%S')}",
         "user_id": user_id,
         "user_vehicle_id": user_vehicle_id,
         "session_date": started_at.date().isoformat(),
@@ -180,9 +244,10 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="주행 더미데이터 JSON 배치 생성기")
     parser.add_argument("--user-id", type=int, default=1)
     parser.add_argument("--user-vehicle-id", type=int, default=1)
-    parser.add_argument("--sessions", type=int, default=3)
     parser.add_argument("--seed", type=int)
     parser.add_argument("--run-at", type=str)
+    parser.add_argument("--fuel-type", type=str)
+    parser.add_argument("--body-type", type=str)
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -197,8 +262,13 @@ def main() -> None:
         random.seed(args.seed)
     run_at = datetime.fromisoformat(args.run_at) if args.run_at else datetime.now()
     sessions = [
-        build_session_payload(args.user_id, args.user_vehicle_id, run_at, sequence)
-        for sequence in range(1, args.sessions + 1)
+        build_session_payload(
+            args.user_id,
+            args.user_vehicle_id,
+            run_at,
+            args.fuel_type,
+            args.body_type,
+        )
     ]
     batch_path = write_batch(args.output_dir, sessions, run_at)
     print(f"generated: {batch_path}")

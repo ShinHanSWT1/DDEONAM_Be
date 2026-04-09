@@ -1,8 +1,9 @@
-package com.gorani.ecodrive.driving.service;
+package com.gorani.ecodrive.driving.service.ingestion;
 
-import com.gorani.ecodrive.driving.dto.DummyDrivingBatch;
-import com.gorani.ecodrive.driving.dto.DummyDrivingRefreshResult;
-import com.gorani.ecodrive.driving.service.DrivingIngestionService.IngestionSummary;
+import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingBatch;
+import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingRefreshResult;
+import com.gorani.ecodrive.driving.service.ingestion.DrivingIngestionService.IngestionSummary;
+import com.gorani.ecodrive.driving.service.aggregation.DrivingAggregationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

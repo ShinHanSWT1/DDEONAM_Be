@@ -1,4 +1,4 @@
-package com.gorani.ecodrive.driving.dto;
+package com.gorani.ecodrive.driving.dto.query;
 
 import java.time.LocalDate;
 

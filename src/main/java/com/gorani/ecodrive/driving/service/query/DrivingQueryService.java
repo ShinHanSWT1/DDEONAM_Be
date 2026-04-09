@@ -1,14 +1,14 @@
-package com.gorani.ecodrive.driving.service;
+package com.gorani.ecodrive.driving.service.query;
 
-import com.gorani.ecodrive.driving.dto.DrivingLatestCarbonResponse;
-import com.gorani.ecodrive.driving.dto.DrivingLatestScoreResponse;
-import com.gorani.ecodrive.driving.dto.DrivingRecentSessionResponse;
-import com.gorani.ecodrive.driving.dto.DrivingBehaviorSummaryResponse;
-import com.gorani.ecodrive.driving.dto.DrivingDailySummaryResponse;
-import com.gorani.ecodrive.driving.dto.DrivingMonthlySummaryResponse;
-import com.gorani.ecodrive.driving.dto.DrivingScoreHistoryResponse;
-import com.gorani.ecodrive.driving.dto.DrivingScoreTrendResponse;
-import com.gorani.ecodrive.driving.dto.DrivingWeeklySummaryResponse;
+import com.gorani.ecodrive.driving.dto.query.DrivingBehaviorSummaryResponse;
+import com.gorani.ecodrive.driving.dto.query.DrivingDailySummaryResponse;
+import com.gorani.ecodrive.driving.dto.query.DrivingLatestCarbonResponse;
+import com.gorani.ecodrive.driving.dto.query.DrivingLatestScoreResponse;
+import com.gorani.ecodrive.driving.dto.query.DrivingMonthlySummaryResponse;
+import com.gorani.ecodrive.driving.dto.query.DrivingRecentSessionResponse;
+import com.gorani.ecodrive.driving.dto.query.DrivingScoreHistoryResponse;
+import com.gorani.ecodrive.driving.dto.query.DrivingScoreTrendResponse;
+import com.gorani.ecodrive.driving.dto.query.DrivingWeeklySummaryResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;

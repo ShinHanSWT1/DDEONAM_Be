@@ -1,12 +1,12 @@
-package com.gorani.ecodrive.driving.dto;
+package com.gorani.ecodrive.driving.dto.query;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
-public record DrivingMonthlySummaryResponse(
-        Integer year,
-        Integer month,
+public record DrivingDailySummaryResponse(
+        LocalDate date,
         Integer sessionCount,
-        Integer dayCount,
         BigDecimal totalDistanceKm,
         Integer totalDrivingTimeMinutes,
         Integer totalIdlingTimeMinutes,
@@ -15,8 +15,7 @@ public record DrivingMonthlySummaryResponse(
         Integer rapidAccelCount,
         Integer hardBrakeCount,
         Integer overspeedCount,
-        BigDecimal steadyDrivingRatio,
-        BigDecimal carbonReductionKg,
-        Integer rewardPoint
+        LocalDateTime firstStartedAt,
+        LocalDateTime lastEndedAt
 ) {
 }
