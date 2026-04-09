@@ -1,6 +1,9 @@
 package com.gorani.ecodrive.driving.service.ingestion;
 
+import com.gorani.ecodrive.common.exception.CustomException;
+import com.gorani.ecodrive.common.exception.ErrorCode;
 import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingGenerationResult;
+import com.gorani.ecodrive.user.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -26,22 +29,33 @@ public class DrivingDummyGenerationService {
 
     private final String pythonCommand;
     private final Path scriptPath;
-    private final List<GenerationTarget> targets;
     private final JdbcTemplate jdbcTemplate;
+    private final UserRepository userRepository;
 
     public DrivingDummyGenerationService(
             JdbcTemplate jdbcTemplate,
+            UserRepository userRepository,
             @Value("${app.driving-dummy.python-command:python3}") String pythonCommand,
-            @Value("${app.driving-dummy.script-path:scripts/generate_driving_dummy_json.py}") String scriptPath,
-            @Value("${app.driving-dummy.target-users:1:1}") String targetUsers
+            @Value("${app.driving-dummy.script-path:scripts/generate_driving_dummy_json.py}") String scriptPath
     ) {
         this.jdbcTemplate = jdbcTemplate;
+        this.userRepository = userRepository;
         this.pythonCommand = pythonCommand;
         this.scriptPath = Path.of(scriptPath).normalize();
-        this.targets = parseTargets(targetUsers);
     }
 
     public DummyDrivingGenerationResult generateTodayBatches(Path outputDir) {
+        List<GenerationTarget> targets = resolveAllActiveTargets();
+        return generateTodayBatches(outputDir, targets);
+    }
+
+    public DummyDrivingGenerationResult generateTodayBatchesForUser(Long userId, Path outputDir) {
+        validateUserExists(userId);
+        GenerationTarget target = resolveActiveTargetForUser(userId);
+        return generateTodayBatches(outputDir, List.of(target));
+    }
+
+    private DummyDrivingGenerationResult generateTodayBatches(Path outputDir, List<GenerationTarget> targets) {
         LocalDateTime runAt = LocalDateTime.now();
         List<String> generatedFiles = new ArrayList<>();
         Path backendRoot = resolveBackendRoot();
@@ -90,6 +104,65 @@ public class DrivingDummyGenerationService {
                 targets.size(),
                 generatedFiles
         );
+    }
+
+    private List<GenerationTarget> resolveAllActiveTargets() {
+        List<GenerationTarget> targets = jdbcTemplate.query("""
+                        select ranked.user_id, ranked.user_vehicle_id
+                        from (
+                            select
+                                uv.user_id,
+                                uv.id as user_vehicle_id,
+                                row_number() over (
+                                    partition by uv.user_id
+                                    order by uv.updated_at desc, uv.id desc
+                                ) as rn
+                            from user_vehicles uv
+                            where uv.status = 'ACTIVE'
+                        ) ranked
+                        where ranked.rn = 1
+                        order by ranked.user_id asc
+                        """,
+                (rs, rowNum) -> new GenerationTarget(
+                        rs.getLong("user_id"),
+                        rs.getLong("user_vehicle_id")
+                )
+        );
+
+        if (targets.isEmpty()) {
+            throw new CustomException(ErrorCode.NO_ACTIVE_VEHICLE);
+        }
+        return targets;
+    }
+
+    private GenerationTarget resolveActiveTargetForUser(Long userId) {
+        GenerationTarget target = jdbcTemplate.query("""
+                        select uv.user_id, uv.id as user_vehicle_id
+                        from user_vehicles uv
+                        where uv.user_id = ?
+                          and uv.status = 'ACTIVE'
+                        order by uv.updated_at desc, uv.id desc
+                        limit 1
+                        """,
+                rs -> rs.next()
+                        ? new GenerationTarget(
+                        rs.getLong("user_id"),
+                        rs.getLong("user_vehicle_id")
+                )
+                        : null,
+                userId
+        );
+
+        if (target == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        return target;
+    }
+
+    private void validateUserExists(Long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new CustomException(ErrorCode.USER_NOT_FOUND);
+        }
     }
 
     private Path resolveScriptPath(Path backendRoot) {
@@ -182,7 +255,7 @@ public class DrivingDummyGenerationService {
         }
 
         String normalized = bodyType.trim().toUpperCase(Locale.ROOT);
-        if (normalized.contains("SMALL") || containsBodyKeyword(bodyType, "경", "소형", "COMPACT")) {
+        if (normalized.contains("SMALL") || containsBodyKeyword(bodyType, "경차", "소형", "COMPACT")) {
             return "SMALL";
         }
         if (normalized.contains("LARGE") || containsBodyKeyword(bodyType, "대형", "SUV", "승합")) {
@@ -217,23 +290,6 @@ public class DrivingDummyGenerationService {
         }
 
         return output;
-    }
-
-    private List<GenerationTarget> parseTargets(String targetUsers) {
-        return List.of(targetUsers.split(",")).stream()
-                .map(String::trim)
-                .filter(value -> !value.isBlank())
-                .map(value -> {
-                    String[] tokens = value.split(":");
-                    if (tokens.length != 2) {
-                        throw new IllegalArgumentException("target-users 형식이 잘못되었습니다. expected=userId:userVehicleId, actual=" + value);
-                    }
-                    return new GenerationTarget(
-                            Long.parseLong(tokens[0].trim()),
-                            Long.parseLong(tokens[1].trim())
-                    );
-                })
-                .toList();
     }
 
     private record GenerationTarget(

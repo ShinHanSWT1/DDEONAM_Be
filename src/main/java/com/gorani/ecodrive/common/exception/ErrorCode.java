@@ -22,6 +22,9 @@ public enum ErrorCode {
     // USER
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "USER_001", "사용자를 찾을 수 없습니다."),
 
+    // VEHICLE
+    NO_ACTIVE_VEHICLE(HttpStatus.NOT_FOUND, "VEHICLE_001", "활성 상태 차량을 찾을 수 없습니다."),
+
     // INSURANCE
     INSURANCE_COMPANY_NOT_FOUND(HttpStatus.NOT_FOUND, "INSURANCE_001", "보험사를 찾을 수 없습니다."),
     INSURANCE_PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "INSURANCE_002", "보험 상품을 찾을 수 없습니다."),

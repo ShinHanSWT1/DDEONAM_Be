@@ -14,8 +14,14 @@ public class DrivingDummyAutomationService {
     private final DrivingDummyRefreshService refreshService;
     private final DrivingDummyFileManager fileManager;
 
-    public DummyDrivingAutomationResult generateAndRefresh() {
+    public DummyDrivingAutomationResult generateAndRefreshForAllUsers() {
         DummyDrivingGenerationResult generation = generationService.generateTodayBatches(fileManager.getPendingDir());
+        DummyDrivingRefreshResult refresh = refreshService.refreshPendingBatches();
+        return new DummyDrivingAutomationResult(generation, refresh);
+    }
+
+    public DummyDrivingAutomationResult generateAndRefreshForUser(Long userId) {
+        DummyDrivingGenerationResult generation = generationService.generateTodayBatchesForUser(userId, fileManager.getPendingDir());
         DummyDrivingRefreshResult refresh = refreshService.refreshPendingBatches();
         return new DummyDrivingAutomationResult(generation, refresh);
     }

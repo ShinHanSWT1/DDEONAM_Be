@@ -33,6 +33,6 @@ public class DrivingDummyScheduler {
         }
 
         log.info("주행 더미데이터 자동 생성/반영 스케줄 실행 시작");
-        drivingDummyAutomationService.generateAndRefresh();
+        drivingDummyAutomationService.generateAndRefreshForAllUsers();
     }
 }
