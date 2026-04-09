@@ -21,6 +21,22 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class DrivingAggregationService {
 
+    private static final int DEFAULT_BASE_SCORE = 100;
+    private static final int MAX_PENALTY = 45;
+    private static final int SAFETY_RAPID_ACCEL_WEIGHT = 4;
+    private static final int SAFETY_HARD_BRAKE_WEIGHT = 5;
+    private static final int SAFETY_OVERSPEED_WEIGHT = 6;
+    private static final int ECO_IDLING_RATIO_WEIGHT = 50;
+    private static final int ECO_RAPID_ACCEL_WEIGHT = 5;
+    private static final int ECO_HARD_BRAKE_WEIGHT = 3;
+
+    private static final BigDecimal BASELINE_DISTANCE_EMISSION_FACTOR = BigDecimal.valueOf(160);
+    private static final BigDecimal BASELINE_IDLING_FACTOR = BigDecimal.valueOf(25);
+    private static final BigDecimal BASELINE_ACCEL_FACTOR = BigDecimal.valueOf(18);
+    private static final BigDecimal BASELINE_DECEL_FACTOR = BigDecimal.valueOf(12);
+    private static final BigDecimal REWARD_POINT_FACTOR = BigDecimal.valueOf(100);
+    private static final BigDecimal GRAM_TO_KILOGRAM = BigDecimal.valueOf(1000);
+
     private final JdbcTemplate jdbcTemplate;
 
     public int refreshSummaries(List<UserDateKey> affectedUserDates) {
@@ -134,24 +150,45 @@ public class DrivingAggregationService {
         double hardBrakePerSession = (double) eventMetrics.hardBrakeCount() / sessionCount;
         double overspeedPerSession = (double) eventMetrics.overspeedCount() / sessionCount;
 
-        int safetyPenalty = (int) Math.round(
-                (rapidAccelPerSession * 4)
-                        + (hardBrakePerSession * 5)
-                        + (overspeedPerSession * 6)
-        );
-        int safetyScore = clamp(100 - Math.min(safetyPenalty, 45));
-
         double idleRatio = sessionMetrics.totalDrivingTimeMinutes() == 0
                 ? 0
                 : (double) sessionMetrics.totalIdlingTimeMinutes() / sessionMetrics.totalDrivingTimeMinutes();
 
-        int ecoPenalty = (int) Math.round(
-                (idleRatio * 50)
-                        + (rapidAccelPerSession * 5)
-                        + (hardBrakePerSession * 3)
-        );
-        int ecoScore = clamp(100 - Math.min(ecoPenalty, 45));
+        int safetyScore = calculateSafetyScore(rapidAccelPerSession, hardBrakePerSession, overspeedPerSession);
+        int ecoScore = calculateEcoScore(idleRatio, rapidAccelPerSession, hardBrakePerSession);
+        BigDecimal carbonReductionKg = calculateCarbonReductionKg(sessionMetrics, eventMetrics, vehicleProfile);
+        int rewardPoint = calculateRewardPoint(carbonReductionKg);
 
+        return new AggregatedDrivingMetrics(safetyScore, ecoScore, carbonReductionKg, rewardPoint);
+    }
+
+    private int calculateSafetyScore(
+            double rapidAccelPerSession,
+            double hardBrakePerSession,
+            double overspeedPerSession
+    ) {
+        int safetyPenalty = (int) Math.round(
+                (rapidAccelPerSession * SAFETY_RAPID_ACCEL_WEIGHT)
+                        + (hardBrakePerSession * SAFETY_HARD_BRAKE_WEIGHT)
+                        + (overspeedPerSession * SAFETY_OVERSPEED_WEIGHT)
+        );
+        return clamp(DEFAULT_BASE_SCORE - Math.min(safetyPenalty, MAX_PENALTY));
+    }
+
+    private int calculateEcoScore(double idleRatio, double rapidAccelPerSession, double hardBrakePerSession) {
+        int ecoPenalty = (int) Math.round(
+                (idleRatio * ECO_IDLING_RATIO_WEIGHT)
+                        + (rapidAccelPerSession * ECO_RAPID_ACCEL_WEIGHT)
+                        + (hardBrakePerSession * ECO_HARD_BRAKE_WEIGHT)
+        );
+        return clamp(DEFAULT_BASE_SCORE - Math.min(ecoPenalty, MAX_PENALTY));
+    }
+
+    private BigDecimal calculateCarbonReductionKg(
+            SessionMetrics sessionMetrics,
+            EventMetrics eventMetrics,
+            VehicleProfile vehicleProfile
+    ) {
         BigDecimal actualCo2G = sessionMetrics.totalDistanceKm()
                 .multiply(vehicleProfile.baseEmissionFactor())
                 .multiply(vehicleProfile.vehicleSizeFactor())
@@ -160,19 +197,20 @@ public class DrivingAggregationService {
                 .add(BigDecimal.valueOf(eventMetrics.hardBrakeCount()).multiply(vehicleProfile.decelFactor()));
 
         BigDecimal baselineCo2G = sessionMetrics.totalDistanceKm()
-                .multiply(BigDecimal.valueOf(160))
+                .multiply(BASELINE_DISTANCE_EMISSION_FACTOR)
                 .multiply(vehicleProfile.vehicleSizeFactor())
-                .add(BigDecimal.valueOf(sessionMetrics.totalIdlingTimeMinutes()).multiply(BigDecimal.valueOf(25)))
-                .add(BigDecimal.valueOf(eventMetrics.rapidAccelCount()).multiply(BigDecimal.valueOf(18)))
-                .add(BigDecimal.valueOf(eventMetrics.hardBrakeCount()).multiply(BigDecimal.valueOf(12)));
+                .add(BigDecimal.valueOf(sessionMetrics.totalIdlingTimeMinutes()).multiply(BASELINE_IDLING_FACTOR))
+                .add(BigDecimal.valueOf(eventMetrics.rapidAccelCount()).multiply(BASELINE_ACCEL_FACTOR))
+                .add(BigDecimal.valueOf(eventMetrics.hardBrakeCount()).multiply(BASELINE_DECEL_FACTOR));
 
-        BigDecimal carbonReductionKg = baselineCo2G.subtract(actualCo2G).max(BigDecimal.ZERO)
-                .divide(BigDecimal.valueOf(1000), 4, RoundingMode.HALF_UP);
-        int rewardPoint = carbonReductionKg.multiply(BigDecimal.valueOf(100))
+        return baselineCo2G.subtract(actualCo2G).max(BigDecimal.ZERO)
+                .divide(GRAM_TO_KILOGRAM, 4, RoundingMode.HALF_UP);
+    }
+
+    private int calculateRewardPoint(BigDecimal carbonReductionKg) {
+        return carbonReductionKg.multiply(REWARD_POINT_FACTOR)
                 .setScale(0, RoundingMode.DOWN)
                 .intValue();
-
-        return new AggregatedDrivingMetrics(safetyScore, ecoScore, carbonReductionKg, rewardPoint);
     }
 
     private VehicleProfile loadVehicleProfile(Long userVehicleId) {
@@ -357,7 +395,7 @@ public class DrivingAggregationService {
                 Date.valueOf(sessionDate)
         );
 
-        int scoreDelta = previousScore == null ? safetyScore - 100 : safetyScore - previousScore;
+        int scoreDelta = previousScore == null ? safetyScore - DEFAULT_BASE_SCORE : safetyScore - previousScore;
 
         jdbcTemplate.update("""
                         delete from driving_score_change_logs

@@ -11,15 +11,20 @@ import com.gorani.ecodrive.driving.dto.DrivingScoreTrendResponse;
 import com.gorani.ecodrive.driving.dto.DrivingWeeklySummaryResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class DrivingQueryService {
+
+    private static final BigDecimal ZERO_DECIMAL = BigDecimal.ZERO;
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -33,12 +38,7 @@ public class DrivingQueryService {
                         order by snapshot_date desc, id desc
                         limit 1
                         """,
-                rs -> rs.next()
-                        ? new DrivingLatestScoreResponse(
-                        rs.getObject("snapshot_date", java.time.LocalDate.class),
-                        rs.getInt("score")
-                )
-                        : new DrivingLatestScoreResponse(null, null),
+                rs -> rs.next() ? mapLatestScore(rs) : new DrivingLatestScoreResponse(null, null),
                 userId,
                 currentMonthStart
         );
@@ -62,18 +62,7 @@ public class DrivingQueryService {
                         order by started_at desc, id desc
                         limit ?
                         """,
-                (rs, rowNum) -> new DrivingRecentSessionResponse(
-                        rs.getLong("id"),
-                        rs.getString("external_key"),
-                        rs.getObject("session_date", java.time.LocalDate.class),
-                        rs.getTimestamp("started_at").toLocalDateTime(),
-                        rs.getTimestamp("ended_at").toLocalDateTime(),
-                        rs.getBigDecimal("distance_km"),
-                        rs.getInt("driving_time_minutes"),
-                        rs.getInt("idling_time_minutes"),
-                        rs.getBigDecimal("average_speed"),
-                        rs.getBigDecimal("max_speed")
-                ),
+                recentSessionRowMapper(),
                 userId,
                 limit
         );
@@ -92,13 +81,7 @@ public class DrivingQueryService {
                         order by snapshot_date desc, id desc
                         limit 1
                         """,
-                rs -> rs.next()
-                        ? new DrivingLatestCarbonResponse(
-                        rs.getObject("snapshot_date", java.time.LocalDate.class),
-                        rs.getBigDecimal("carbon_reduction_kg"),
-                        rs.getInt("reward_point")
-                )
-                        : new DrivingLatestCarbonResponse(null, null, null),
+                rs -> rs.next() ? mapLatestCarbon(rs) : new DrivingLatestCarbonResponse(null, null, null),
                 userId,
                 currentMonthStart
         );
@@ -125,22 +108,7 @@ public class DrivingQueryService {
                           and s.session_date = ?
                         group by s.session_date
                         """,
-                rs -> rs.next()
-                        ? new DrivingDailySummaryResponse(
-                        rs.getObject("session_date", LocalDate.class),
-                        rs.getInt("session_count"),
-                        rs.getBigDecimal("total_distance_km"),
-                        rs.getInt("total_driving_time_minutes"),
-                        rs.getInt("total_idling_time_minutes"),
-                        rs.getBigDecimal("average_speed"),
-                        rs.getBigDecimal("max_speed"),
-                        rs.getInt("rapid_accel_count"),
-                        rs.getInt("hard_brake_count"),
-                        rs.getInt("overspeed_count"),
-                        rs.getTimestamp("first_started_at").toLocalDateTime(),
-                        rs.getTimestamp("last_ended_at").toLocalDateTime()
-                )
-                        : new DrivingDailySummaryResponse(date, 0, null, null, null, null, null, null, null, null, null, null),
+                rs -> rs.next() ? mapDailySummary(rs) : emptyDailySummary(date),
                 userId,
                 date
         );
@@ -165,16 +133,7 @@ public class DrivingQueryService {
                         where s.user_id = ?
                           and s.session_date = ?
                         """,
-                rs -> rs.next()
-                        ? new DrivingBehaviorSummaryResponse(
-                        rs.getObject("session_date", LocalDate.class),
-                        rs.getInt("rapid_accel_count"),
-                        rs.getInt("hard_brake_count"),
-                        rs.getInt("overspeed_count"),
-                        rs.getInt("night_driving_count"),
-                        rs.getInt("total_idling_time_minutes")
-                )
-                        : new DrivingBehaviorSummaryResponse(date, 0, 0, 0, 0, 0),
+                rs -> rs.next() ? mapBehaviorSummary(rs) : emptyBehaviorSummary(date),
                 date,
                 userId,
                 date
@@ -214,23 +173,7 @@ public class DrivingQueryService {
                         group by week_of_month
                         order by week_of_month
                         """,
-                (rs, rowNum) -> {
-                    int weekOfMonth = rs.getInt("week_of_month");
-                    return new DrivingWeeklySummaryResponse(
-                            rs.getInt("year"),
-                            rs.getInt("month"),
-                            weekOfMonth,
-                            rs.getInt("month") + "월 " + weekOfMonth + "주차",
-                            rs.getObject("start_date", LocalDate.class),
-                            rs.getObject("end_date", LocalDate.class),
-                            rs.getInt("day_count"),
-                            rs.getInt("session_count"),
-                            rs.getBigDecimal("average_distance_km"),
-                            rs.getBigDecimal("average_idling_time_minutes"),
-                            rs.getBigDecimal("average_speed"),
-                            rs.getBigDecimal("max_speed")
-                    );
-                },
+                weeklySummaryRowMapper(),
                 userId,
                 year,
                 month,
@@ -306,24 +249,8 @@ public class DrivingQueryService {
                         cross join carbon_metrics cm
                         """,
                 rs -> rs.next() && rs.getInt("session_count") > 0
-                        ? new DrivingMonthlySummaryResponse(
-                        rs.getInt("year"),
-                        rs.getInt("month"),
-                        rs.getInt("session_count"),
-                        rs.getInt("day_count"),
-                        rs.getBigDecimal("total_distance_km"),
-                        rs.getInt("total_driving_time_minutes"),
-                        rs.getInt("total_idling_time_minutes"),
-                        rs.getBigDecimal("average_speed"),
-                        rs.getBigDecimal("max_speed"),
-                        rs.getInt("rapid_accel_count"),
-                        rs.getInt("hard_brake_count"),
-                        rs.getInt("overspeed_count"),
-                        rs.getBigDecimal("steady_driving_ratio"),
-                        rs.getBigDecimal("carbon_reduction_kg"),
-                        rs.getInt("reward_point")
-                )
-                        : new DrivingMonthlySummaryResponse(year, month, 0, 0, BigDecimal.ZERO, 0, 0, null, null, 0, 0, 0, BigDecimal.ZERO, BigDecimal.ZERO, 0),
+                        ? mapMonthlySummary(rs)
+                        : emptyMonthlySummary(year, month),
                 userId,
                 year,
                 month,
@@ -347,10 +274,7 @@ public class DrivingQueryService {
                           and extract(month from snapshot_date) = ?
                         order by snapshot_date asc, id asc
                         """,
-                (rs, rowNum) -> new DrivingScoreTrendResponse(
-                        rs.getObject("snapshot_date", LocalDate.class),
-                        rs.getInt("score")
-                ),
+                scoreTrendRowMapper(),
                 userId,
                 year,
                 month
@@ -365,15 +289,153 @@ public class DrivingQueryService {
                         order by change_date desc, display_order asc, id desc
                         limit ?
                         """,
-                (rs, rowNum) -> new DrivingScoreHistoryResponse(
-                        rs.getLong("id"),
-                        rs.getString("change_type"),
-                        rs.getString("message"),
-                        rs.getInt("score_delta"),
-                        rs.getObject("change_date", LocalDate.class)
-                ),
+                scoreHistoryRowMapper(),
                 userId,
                 limit
+        );
+    }
+
+    private DrivingLatestScoreResponse mapLatestScore(ResultSet rs) throws SQLException {
+        return new DrivingLatestScoreResponse(
+                rs.getObject("snapshot_date", LocalDate.class),
+                rs.getInt("score")
+        );
+    }
+
+    private DrivingLatestCarbonResponse mapLatestCarbon(ResultSet rs) throws SQLException {
+        return new DrivingLatestCarbonResponse(
+                rs.getObject("snapshot_date", LocalDate.class),
+                rs.getBigDecimal("carbon_reduction_kg"),
+                rs.getInt("reward_point")
+        );
+    }
+
+    private DrivingDailySummaryResponse mapDailySummary(ResultSet rs) throws SQLException {
+        return new DrivingDailySummaryResponse(
+                rs.getObject("session_date", LocalDate.class),
+                rs.getInt("session_count"),
+                rs.getBigDecimal("total_distance_km"),
+                rs.getInt("total_driving_time_minutes"),
+                rs.getInt("total_idling_time_minutes"),
+                rs.getBigDecimal("average_speed"),
+                rs.getBigDecimal("max_speed"),
+                rs.getInt("rapid_accel_count"),
+                rs.getInt("hard_brake_count"),
+                rs.getInt("overspeed_count"),
+                rs.getTimestamp("first_started_at").toLocalDateTime(),
+                rs.getTimestamp("last_ended_at").toLocalDateTime()
+        );
+    }
+
+    private DrivingDailySummaryResponse emptyDailySummary(LocalDate date) {
+        return new DrivingDailySummaryResponse(date, 0, null, null, null, null, null, null, null, null, null, null);
+    }
+
+    private DrivingBehaviorSummaryResponse mapBehaviorSummary(ResultSet rs) throws SQLException {
+        return new DrivingBehaviorSummaryResponse(
+                rs.getObject("session_date", LocalDate.class),
+                rs.getInt("rapid_accel_count"),
+                rs.getInt("hard_brake_count"),
+                rs.getInt("overspeed_count"),
+                rs.getInt("night_driving_count"),
+                rs.getInt("total_idling_time_minutes")
+        );
+    }
+
+    private DrivingBehaviorSummaryResponse emptyBehaviorSummary(LocalDate date) {
+        return new DrivingBehaviorSummaryResponse(date, 0, 0, 0, 0, 0);
+    }
+
+    private DrivingMonthlySummaryResponse mapMonthlySummary(ResultSet rs) throws SQLException {
+        return new DrivingMonthlySummaryResponse(
+                rs.getInt("year"),
+                rs.getInt("month"),
+                rs.getInt("session_count"),
+                rs.getInt("day_count"),
+                rs.getBigDecimal("total_distance_km"),
+                rs.getInt("total_driving_time_minutes"),
+                rs.getInt("total_idling_time_minutes"),
+                rs.getBigDecimal("average_speed"),
+                rs.getBigDecimal("max_speed"),
+                rs.getInt("rapid_accel_count"),
+                rs.getInt("hard_brake_count"),
+                rs.getInt("overspeed_count"),
+                rs.getBigDecimal("steady_driving_ratio"),
+                rs.getBigDecimal("carbon_reduction_kg"),
+                rs.getInt("reward_point")
+        );
+    }
+
+    private DrivingMonthlySummaryResponse emptyMonthlySummary(int year, int month) {
+        return new DrivingMonthlySummaryResponse(
+                year,
+                month,
+                0,
+                0,
+                ZERO_DECIMAL,
+                0,
+                0,
+                null,
+                null,
+                0,
+                0,
+                0,
+                ZERO_DECIMAL,
+                ZERO_DECIMAL,
+                0
+        );
+    }
+
+    private RowMapper<DrivingRecentSessionResponse> recentSessionRowMapper() {
+        return (rs, rowNum) -> new DrivingRecentSessionResponse(
+                rs.getLong("id"),
+                rs.getString("external_key"),
+                rs.getObject("session_date", LocalDate.class),
+                rs.getTimestamp("started_at").toLocalDateTime(),
+                rs.getTimestamp("ended_at").toLocalDateTime(),
+                rs.getBigDecimal("distance_km"),
+                rs.getInt("driving_time_minutes"),
+                rs.getInt("idling_time_minutes"),
+                rs.getBigDecimal("average_speed"),
+                rs.getBigDecimal("max_speed")
+        );
+    }
+
+    private RowMapper<DrivingWeeklySummaryResponse> weeklySummaryRowMapper() {
+        return (rs, rowNum) -> {
+            int weekOfMonth = rs.getInt("week_of_month");
+            int month = rs.getInt("month");
+            return new DrivingWeeklySummaryResponse(
+                    rs.getInt("year"),
+                    month,
+                    weekOfMonth,
+                    month + "월 " + weekOfMonth + "주차",
+                    rs.getObject("start_date", LocalDate.class),
+                    rs.getObject("end_date", LocalDate.class),
+                    rs.getInt("day_count"),
+                    rs.getInt("session_count"),
+                    rs.getBigDecimal("average_distance_km"),
+                    rs.getBigDecimal("average_idling_time_minutes"),
+                    rs.getBigDecimal("average_speed"),
+                    rs.getBigDecimal("max_speed")
+            );
+        };
+    }
+
+    private RowMapper<DrivingScoreTrendResponse> scoreTrendRowMapper() {
+        return (rs, rowNum) -> new DrivingScoreTrendResponse(
+                rs.getObject("snapshot_date", LocalDate.class),
+                rs.getInt("score")
+        );
+    }
+
+    private RowMapper<DrivingScoreHistoryResponse> scoreHistoryRowMapper() {
+        return (rs, rowNum) -> new DrivingScoreHistoryResponse(
+                rs.getLong("id"),
+                rs.getString("change_type"),
+                rs.getString("message"),
+                rs.getInt("score_delta"),
+                rs.getObject("change_date", LocalDate.class)
         );
     }
 }
