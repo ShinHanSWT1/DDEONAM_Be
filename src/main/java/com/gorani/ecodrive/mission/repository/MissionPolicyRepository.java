@@ -14,5 +14,5 @@ public interface MissionPolicyRepository extends JpaRepository<MissionPolicy, Lo
     /**
      * 타입/상태 기준 정책 목록 조회 메서드
      */
-    List<MissionPolicy> findAllByMissionTypeAndStatus(MissionType missionType, MissionPolicyStatus status);
+    List<MissionPolicy> findAllByMissionTypeAndStatusOrderByIdAsc(MissionType missionType, MissionPolicyStatus status);
 }

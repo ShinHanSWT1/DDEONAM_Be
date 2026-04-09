@@ -12,6 +12,7 @@ import com.gorani.ecodrive.mission.repository.UserMissionRepository;
 import com.gorani.ecodrive.user.domain.User;
 import com.gorani.ecodrive.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,7 +66,7 @@ public class MissionAssignmentService {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        List<MissionPolicy> activePolicies = missionPolicyRepository.findAllByMissionTypeAndStatus(
+        List<MissionPolicy> activePolicies = missionPolicyRepository.findAllByMissionTypeAndStatusOrderByIdAsc(
                 missionType,
                 MissionPolicyStatus.ACTIVE
         );
@@ -89,7 +90,15 @@ public class MissionAssignmentService {
                     now
             ));
         }
-        userMissionRepository.saveAll(assignments);
+        try {
+            userMissionRepository.saveAll(assignments);
+        } catch (DataIntegrityViolationException e) {
+            // 동시 요청 선점 성공 케이스 처리
+            if (userMissionRepository.existsAssignedInPeriod(userId, missionType, period.startDate())) {
+                return;
+            }
+            throw e;
+        }
     }
 
     /**

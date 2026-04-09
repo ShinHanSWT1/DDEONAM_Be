@@ -85,7 +85,7 @@ class MissionServiceTests {
                 ArgumentMatchers.any(LocalDate.class)
         )).willReturn(false);
         given(userRepository.findById(1L)).willReturn(Optional.of(user));
-        given(missionPolicyRepository.findAllByMissionTypeAndStatus(MissionType.DAILY, MissionPolicyStatus.ACTIVE))
+        given(missionPolicyRepository.findAllByMissionTypeAndStatusOrderByIdAsc(MissionType.DAILY, MissionPolicyStatus.ACTIVE))
                 .willReturn(List.of(policy1, policy2));
 
         missionService.ensureAssigned(1L, MissionType.DAILY);
