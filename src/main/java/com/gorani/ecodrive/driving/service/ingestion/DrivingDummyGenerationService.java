@@ -46,12 +46,14 @@ public class DrivingDummyGenerationService {
 
     public DummyDrivingGenerationResult generateTodayBatches(Path outputDir) {
         List<GenerationTarget> targets = resolveAllActiveTargets();
+        log.info("Resolved generation targets for all users. count={}", targets.size());
         return generateTodayBatches(outputDir, targets);
     }
 
     public DummyDrivingGenerationResult generateTodayBatchesForUser(Long userId, Path outputDir) {
         validateUserExists(userId);
         GenerationTarget target = resolveActiveTargetForUser(userId);
+        log.info("Resolved generation target for user. userId={}, userVehicleId={}", target.userId(), target.userVehicleId());
         return generateTodayBatches(outputDir, List.of(target));
     }
 
@@ -63,6 +65,15 @@ public class DrivingDummyGenerationService {
         Path resolvedOutputDir = outputDir.isAbsolute()
                 ? outputDir.normalize()
                 : backendRoot.resolve(outputDir).normalize();
+
+        log.info(
+                "Starting driving dummy generation. runAt={}, targetCount={}, scriptPath={}, outputDir={}, backendRoot={}",
+                runAt,
+                targets.size(),
+                resolvedScriptPath,
+                resolvedOutputDir,
+                backendRoot
+        );
 
         for (GenerationTarget target : targets) {
             VehicleGenerationProfile vehicleProfile = loadVehicleGenerationProfile(target.userVehicleId());
@@ -82,22 +93,42 @@ public class DrivingDummyGenerationService {
             }
 
             try {
+                log.info(
+                        "Executing driving dummy generator command. userId={}, userVehicleId={}, fuelType={}, bodyType={}",
+                        target.userId(),
+                        target.userVehicleId(),
+                        vehicleProfile == null ? "UNKNOWN" : vehicleProfile.fuelType(),
+                        vehicleProfile == null ? "UNKNOWN" : vehicleProfile.bodyType()
+                );
+
                 String generatedPath = execute(command);
                 generatedFiles.add(generatedPath);
-                log.info("주행 더미데이터 생성 완료. userId={}, vehicleId={}, fuelType={}, bodyType={}, sessions={}, file={}",
+                log.info(
+                        "Driving dummy generated. userId={}, vehicleId={}, fuelType={}, bodyType={}, sessions={}, file={}",
                         target.userId(),
                         target.userVehicleId(),
                         vehicleProfile == null ? "UNKNOWN" : vehicleProfile.fuelType(),
                         vehicleProfile == null ? "UNKNOWN" : vehicleProfile.bodyType(),
                         SESSION_COUNT_PER_RUN,
-                        generatedPath);
+                        generatedPath
+                );
             } catch (IOException | InterruptedException e) {
+                log.error(
+                        "Driving dummy generation script execution failed. userId={}, userVehicleId={}, command={}",
+                        target.userId(),
+                        target.userVehicleId(),
+                        command,
+                        e
+                );
                 throw new IllegalStateException(
-                        "주행 더미데이터 생성 스크립트 실행에 실패했습니다. userId=" + target.userId(),
+                        "Driving dummy generation script execution failed. userId=" + target.userId(),
                         e
                 );
             }
         }
+
+        log.info("Driving dummy generation finished. generatedBatches={}, attemptedUsers={}, generatedFiles={}",
+                generatedFiles.size(), targets.size(), generatedFiles);
 
         return new DummyDrivingGenerationResult(
                 generatedFiles.size(),
@@ -130,6 +161,7 @@ public class DrivingDummyGenerationService {
         );
 
         if (targets.isEmpty()) {
+            log.warn("No active vehicle target found for driving dummy generation.");
             throw new CustomException(ErrorCode.NO_ACTIVE_VEHICLE);
         }
         return targets;
@@ -154,6 +186,7 @@ public class DrivingDummyGenerationService {
         );
 
         if (target == null) {
+            log.warn("No active vehicle target found for user. userId={}", userId);
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
         return target;
@@ -161,6 +194,7 @@ public class DrivingDummyGenerationService {
 
     private void validateUserExists(Long userId) {
         if (!userRepository.existsById(userId)) {
+            log.warn("Driving dummy generation requested for non-existing user. userId={}", userId);
             throw new CustomException(ErrorCode.USER_NOT_FOUND);
         }
     }
@@ -176,7 +210,7 @@ public class DrivingDummyGenerationService {
             return backendResolved;
         }
 
-        throw new IllegalStateException("주행 더미데이터 스크립트를 찾을 수 없습니다. configured=" + scriptPath);
+        throw new IllegalStateException("Driving dummy script not found. configured=" + scriptPath);
     }
 
     private Path stripLeadingParentSegments(Path path) {
@@ -217,7 +251,7 @@ public class DrivingDummyGenerationService {
             walker = walker.getParent();
         }
 
-        throw new IllegalStateException("EcoDrive_be 모듈 루트를 찾을 수 없습니다. user.dir=" + current);
+        throw new IllegalStateException("EcoDrive_be module root not found. user.dir=" + current);
     }
 
     private VehicleGenerationProfile loadVehicleGenerationProfile(long userVehicleId) {
@@ -286,9 +320,11 @@ public class DrivingDummyGenerationService {
 
         int exitCode = process.waitFor();
         if (exitCode != 0) {
-            throw new IllegalStateException("Python 스크립트 종료 코드가 비정상입니다. exitCode=" + exitCode + ", output=" + output);
+            log.error("Driving dummy python script exited with non-zero status. exitCode={}, output={}", exitCode, output);
+            throw new IllegalStateException("Python script exited with non-zero status. exitCode=" + exitCode + ", output=" + output);
         }
 
+        log.debug("Driving dummy python script completed. output={}", output);
         return output;
     }
 

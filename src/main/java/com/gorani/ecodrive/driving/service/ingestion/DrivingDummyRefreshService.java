@@ -2,8 +2,8 @@ package com.gorani.ecodrive.driving.service.ingestion;
 
 import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingBatch;
 import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingRefreshResult;
-import com.gorani.ecodrive.driving.service.ingestion.DrivingIngestionService.IngestionSummary;
 import com.gorani.ecodrive.driving.service.aggregation.DrivingAggregationService;
+import com.gorani.ecodrive.driving.service.ingestion.DrivingIngestionService.IngestionSummary;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,8 +34,12 @@ public class DrivingDummyRefreshService {
         List<String> batchIds = new ArrayList<>();
 
         try {
-            for (Path file : fileManager.listPendingJsonFiles()) {
+            List<Path> pendingFiles = fileManager.listPendingJsonFiles();
+            log.info("Starting pending driving batch refresh. pendingFileCount={}, pendingDir={}", pendingFiles.size(), fileManager.getPendingDir());
+
+            for (Path file : pendingFiles) {
                 try {
+                    log.info("Processing pending driving batch file. file={}", file);
                     DummyDrivingBatch batch = fileReader.read(file);
                     FileProcessResult result = transactionTemplate.execute(status -> {
                         IngestionSummary summary = ingestionService.ingest(batch);
@@ -48,7 +52,7 @@ public class DrivingDummyRefreshService {
                     });
 
                     if (result == null) {
-                        throw new IllegalStateException("dummy driving batch 처리 결과가 비어 있습니다.");
+                        throw new IllegalStateException("Dummy driving batch processing returned null result.");
                     }
 
                     fileManager.deleteProcessed(file);
@@ -57,19 +61,40 @@ public class DrivingDummyRefreshService {
                     insertedEvents += result.insertedEvents();
                     updatedUsers += result.updatedUsers();
                     batchIds.add(batch.batchId());
+
+                    log.info(
+                            "Processed pending driving batch file successfully. file={}, batchId={}, insertedSessions={}, insertedEvents={}, updatedUsers={}",
+                            file,
+                            batch.batchId(),
+                            result.insertedSessions(),
+                            result.insertedEvents(),
+                            result.updatedUsers()
+                    );
                 } catch (Exception e) {
                     failedFiles++;
                     try {
-                        fileManager.moveToFailed(file);
+                        Path failedPath = fileManager.moveToFailed(file);
+                        log.warn("Moved failed driving batch file to failed directory. source={}, destination={}", file, failedPath);
                     } catch (IOException moveException) {
-                        log.error("failed 디렉터리로 파일 이동 실패. file={}", file, moveException);
+                        log.error("Failed to move file to failed directory. file={}", file, moveException);
                     }
-                    log.error("dummy driving batch 처리 실패. file={}", file, e);
+                    log.error("Dummy driving batch processing failed. file={}", file, e);
                 }
             }
         } catch (IOException e) {
-            throw new IllegalStateException("pending 파일 목록을 읽는 중 오류가 발생했습니다.", e);
+            log.error("Failed to list pending driving batch files. pendingDir={}", fileManager.getPendingDir(), e);
+            throw new IllegalStateException("Failed to list pending files.", e);
         }
+
+        log.info(
+                "Finished pending driving batch refresh. processedBatches={}, insertedSessions={}, insertedEvents={}, updatedUsers={}, failedFiles={}, batchIds={}",
+                processedBatches,
+                insertedSessions,
+                insertedEvents,
+                updatedUsers,
+                failedFiles,
+                batchIds
+        );
 
         return new DummyDrivingRefreshResult(
                 processedBatches,

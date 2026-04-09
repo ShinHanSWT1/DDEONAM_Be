@@ -6,6 +6,7 @@ import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingBatch;
 import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingEventPayload;
 import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingSessionPayload;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -21,37 +22,37 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DrivingIngestionService {
 
     private final JdbcTemplate jdbcTemplate;
 
-    // JSON으로부터 읽은 DTO를 실제 DB에 넣음
     public IngestionSummary ingest(DummyDrivingBatch batch) {
+        log.info("Starting ingestion for driving batch. batchId={}", batch == null ? null : batch.batchId());
 
-        // 배치 파일이 비어있는지, 세션이 없는지 확인
-        if (batch.sessions() == null || batch.sessions().isEmpty()) {
+        if (batch == null || batch.sessions() == null || batch.sessions().isEmpty()) {
+            log.warn("Driving batch ingestion rejected due to empty sessions. batchId={}", batch == null ? null : batch.batchId());
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
         int insertedSessions = 0;
         int insertedEvents = 0;
+        int skippedDuplicateSessions = 0;
         Set<UserDateKey> affectedUserDates = new LinkedHashSet<>();
 
         for (DummyDrivingSessionPayload session : batch.sessions()) {
             validate(session);
 
-            // 이미 넣은 주행이면 중복 insert 하지 않고 넘어감
             if (existsByExternalKey(session.externalKey())) {
+                skippedDuplicateSessions++;
+                log.debug("Skip duplicate driving session by externalKey. externalKey={}, userId={}", session.externalKey(), session.userId());
                 continue;
             }
 
-            // 세션을 먼저 저장하고, 그 세션 id로 이벤트를 연결해서 넣음
             Long sessionId = insertSession(session);
             insertedSessions++;
-
-            // 나중에 점수/탄소 재계산할 날짜를 여기서 같이 모아둠
             affectedUserDates.add(new UserDateKey(session.userId(), session.sessionDate()));
 
             List<DummyDrivingEventPayload> events = session.events() == null ? List.of() : session.events();
@@ -61,10 +62,18 @@ public class DrivingIngestionService {
             }
         }
 
+        log.info(
+                "Completed ingestion for driving batch. batchId={}, insertedSessions={}, insertedEvents={}, skippedDuplicateSessions={}, affectedUserDates={}",
+                batch.batchId(),
+                insertedSessions,
+                insertedEvents,
+                skippedDuplicateSessions,
+                affectedUserDates.size()
+        );
+
         return new IngestionSummary(insertedSessions, insertedEvents, new ArrayList<>(affectedUserDates));
     }
 
-    // external_key 기준으로 이미 저장된 세션인지 확인
     private boolean existsByExternalKey(String externalKey) {
         Integer count = jdbcTemplate.queryForObject(
                 "select count(*) from driving_sessions where external_key = ?",
@@ -74,7 +83,6 @@ public class DrivingIngestionService {
         return count != null && count > 0;
     }
 
-    // 주행 세션 1건을 driving_sessions 테이블에 저장
     private Long insertSession(DummyDrivingSessionPayload session) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         LocalDateTime now = LocalDateTime.now();
@@ -113,12 +121,12 @@ public class DrivingIngestionService {
 
         Number key = keyHolder.getKey();
         if (key == null) {
+            log.error("Inserted driving session but keyHolder returned null. externalKey={}, userId={}", session.externalKey(), session.userId());
             throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
         return key.longValue();
     }
 
-    // 세션에 속한 이벤트 1건을 driving_events 테이블에 저장
     private void insertEvent(Long sessionId, Long userId, DummyDrivingEventPayload event) {
         jdbcTemplate.update("""
                         insert into driving_events (
@@ -141,7 +149,6 @@ public class DrivingIngestionService {
         );
     }
 
-    // DB에 넣기 전에 필수값이 다 있는지 확인
     private void validate(DummyDrivingSessionPayload session) {
         if (session.externalKey() == null
                 || session.userId() == null
@@ -153,6 +160,8 @@ public class DrivingIngestionService {
                 || session.drivingTimeMinutes() == null
                 || session.averageSpeed() == null
                 || session.maxSpeed() == null) {
+            log.warn("Driving session payload validation failed. externalKey={}, userId={}, userVehicleId={}",
+                    session.externalKey(), session.userId(), session.userVehicleId());
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
     }
