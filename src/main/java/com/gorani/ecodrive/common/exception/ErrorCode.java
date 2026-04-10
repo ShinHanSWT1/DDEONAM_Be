@@ -36,7 +36,7 @@ public enum ErrorCode {
     USER_INSURANCE_NOT_FOUND(HttpStatus.NOT_FOUND, "INSURANCE_008", "해당 보험 내역을 찾을 수 없습니다."),
     CONTRACT_ALREADY_ACTIVE(HttpStatus.BAD_REQUEST, "INSURANCE_009", "이미 활성화된 계약입니다."),
     INVALID_CONTRACT_STATUS(HttpStatus.BAD_REQUEST, "INSURANCE_010", "처리할 수 없는 계약 상태입니다."),
-    INSURANCE_CONTRACT_NOT_FOUND(HttpStatus.NOT_FOUND, "INSURANCE_003", "해당 보험 계약을 찾을 수 없습니다.");
+    INSURANCE_CONTRACT_NOT_FOUND(HttpStatus.NOT_FOUND, "INSURANCE_011", "해당 보험 계약을 찾을 수 없습니다.");
  
 
     private final HttpStatus status;
