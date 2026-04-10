@@ -2,6 +2,7 @@ package com.gorani.ecodrive.user.service;
 
 import com.gorani.ecodrive.common.exception.CustomException;
 import com.gorani.ecodrive.common.exception.ErrorCode;
+import com.gorani.ecodrive.driving.service.aggregation.DrivingSnapshotInitializationService;
 import com.gorani.ecodrive.insurance.service.InsuranceOnboardingService;
 import com.gorani.ecodrive.user.domain.User;
 import com.gorani.ecodrive.user.repository.UserRepository;
@@ -21,6 +22,7 @@ public class OnboardingService {
     private final UserService userService;
     private final VehicleOnboardingService vehicleOnboardingService;
     private final InsuranceOnboardingService insuranceOnboardingService;
+    private final DrivingSnapshotInitializationService drivingSnapshotInitializationService;
 
     @Transactional
     public VehicleRegistrationResult registerVehicle(Long userId, VehicleRegistrationRequest request) {
@@ -98,6 +100,14 @@ public class OnboardingService {
     private boolean refreshOnboardingCompleted(User user) {
         boolean isOnboardingCompleted = userService.calculateOnboardingCompleted(user.getId());
         user.updateOnboardingCompleted(isOnboardingCompleted);
+        if (isOnboardingCompleted) {
+            LocalDateTime now = LocalDateTime.now();
+            drivingSnapshotInitializationService.initializeDefaults(
+                    user.getId(),
+                    now.toLocalDate(),
+                    now
+            );
+        }
         return isOnboardingCompleted;
     }
 

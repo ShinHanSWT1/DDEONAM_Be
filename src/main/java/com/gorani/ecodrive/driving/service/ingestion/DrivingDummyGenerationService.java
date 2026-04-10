@@ -60,19 +60,15 @@ public class DrivingDummyGenerationService {
     private DummyDrivingGenerationResult generateTodayBatches(Path outputDir, List<GenerationTarget> targets) {
         LocalDateTime runAt = LocalDateTime.now();
         List<String> generatedFiles = new ArrayList<>();
-        Path backendRoot = resolveBackendRoot();
-        Path resolvedScriptPath = resolveScriptPath(backendRoot);
-        Path resolvedOutputDir = outputDir.isAbsolute()
-                ? outputDir.normalize()
-                : backendRoot.resolve(outputDir).normalize();
+        Path resolvedScriptPath = resolveScriptPath();
+        Path resolvedOutputDir = resolveOutputDir(outputDir);
 
         log.info(
-                "Starting driving dummy generation. runAt={}, targetCount={}, scriptPath={}, outputDir={}, backendRoot={}",
+                "Starting driving dummy generation. runAt={}, targetCount={}, scriptPath={}, outputDir={}",
                 runAt,
                 targets.size(),
                 resolvedScriptPath,
-                resolvedOutputDir,
-                backendRoot
+                resolvedOutputDir
         );
 
         for (GenerationTarget target : targets) {
@@ -199,11 +195,12 @@ public class DrivingDummyGenerationService {
         }
     }
 
-    private Path resolveScriptPath(Path backendRoot) {
+    private Path resolveScriptPath() {
         if (scriptPath.isAbsolute() && Files.exists(scriptPath)) {
-            return scriptPath;
+            return scriptPath.normalize();
         }
 
+        Path backendRoot = resolveBackendRoot();
         Path normalizedRelative = stripLeadingParentSegments(scriptPath);
         Path backendResolved = backendRoot.resolve(normalizedRelative).normalize();
         if (Files.exists(backendResolved)) {
@@ -211,6 +208,14 @@ public class DrivingDummyGenerationService {
         }
 
         throw new IllegalStateException("Driving dummy script not found. configured=" + scriptPath);
+    }
+
+    private Path resolveOutputDir(Path outputDir) {
+        if (outputDir.isAbsolute()) {
+            return outputDir.normalize();
+        }
+
+        return resolveBackendRoot().resolve(outputDir).normalize();
     }
 
     private Path stripLeadingParentSegments(Path path) {
@@ -225,7 +230,7 @@ public class DrivingDummyGenerationService {
         return result;
     }
 
-    private Path resolveBackendRoot() {
+    private Path  resolveBackendRoot() {
         Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
 
         if (Files.exists(current.resolve("build.gradle"))) {
