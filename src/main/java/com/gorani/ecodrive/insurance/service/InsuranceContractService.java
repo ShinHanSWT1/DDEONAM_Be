@@ -66,7 +66,7 @@ public class InsuranceContractService {
         int age = user.getAge() != null ? user.getAge() : 30;
         int score = java.util.Optional.ofNullable(drivingQueryService.getLatestScore(userId).score()).orElse(0);
         int experienceYears = insuranceContractRepository.findFirstByUser_IdOrderByStartedAtAsc(userId)
-                .map(c -> c.getStartedAt() != null ? (int) ChronoUnit.YEARS.between(c.getStartedAt(), LocalDateTime.now()) : 0)
+                .map(c -> c.getStartedAt() != null ? (int) ChronoUnit.YEARS.between(c.getStartedAt(), LocalDateTime.now()) : 100)
                 .orElse(0);
         int baseAmount = product.getBaseAmount();
         int finalAmount = discountCalculationService.calculateFinalPremium(baseAmount, age, score, experienceYears);
