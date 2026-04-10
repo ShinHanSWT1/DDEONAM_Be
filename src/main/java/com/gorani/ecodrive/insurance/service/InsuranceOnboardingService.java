@@ -22,7 +22,6 @@ public class InsuranceOnboardingService {
     private static final String DEFAULT_INSURANCE_PRODUCT_NAME = "온보딩 표준형";
     private static final String DEFAULT_CONTRACT_STATUS = "ACTIVE";
     private static final String DEFAULT_CONTRACT_PLAN_TYPE = "STANDARD";
-    private static final int DEFAULT_DRIVING_SCORE = 100;
 
     private final JdbcTemplate jdbcTemplate;
 

@@ -225,8 +225,8 @@ def build_session_payload(user_id: int, user_vehicle_id: int, run_at: datetime,
     }
 
 
-def write_batch(output_dir: Path, sessions: list[dict], run_at: datetime) -> Path:
-    batch_id = f"batch-{run_at.strftime('%Y%m%d-%H%M%S')}"
+def write_batch(output_dir: Path, sessions: list[dict], run_at: datetime, user_id: int) -> Path:
+    batch_id = f"batch-{run_at.strftime('%Y%m%d-%H%M%S')}-user-{user_id}"
     output_dir.mkdir(parents=True, exist_ok=True)
     tmp_path = output_dir / f"{batch_id}.json.tmp"
     final_path = output_dir / f"{batch_id}.json"
@@ -270,7 +270,7 @@ def main() -> None:
             args.body_type,
         )
     ]
-    batch_path = write_batch(args.output_dir, sessions, run_at)
+    batch_path = write_batch(args.output_dir, sessions, run_at, args.user_id)
     print(f"generated: {batch_path}")
 
 
