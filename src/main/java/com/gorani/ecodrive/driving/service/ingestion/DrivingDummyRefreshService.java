@@ -4,6 +4,7 @@ import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingBatch;
 import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingRefreshResult;
 import com.gorani.ecodrive.driving.service.aggregation.DrivingAggregationService;
 import com.gorani.ecodrive.driving.service.ingestion.DrivingIngestionService.IngestionSummary;
+import com.gorani.ecodrive.mission.service.MissionProgressUpdateService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class DrivingDummyRefreshService {
     private final DrivingDummyFileReader fileReader;
     private final DrivingIngestionService ingestionService;
     private final DrivingAggregationService aggregationService;
+    private final MissionProgressUpdateService missionProgressUpdateService;
     private final TransactionTemplate transactionTemplate;
 
     public DummyDrivingRefreshResult refreshPendingBatches() {
@@ -30,6 +32,7 @@ public class DrivingDummyRefreshService {
         int insertedSessions = 0;
         int insertedEvents = 0;
         int updatedUsers = 0;
+        int updatedMissions = 0;
         int failedFiles = 0;
         List<String> batchIds = new ArrayList<>();
 
@@ -44,10 +47,13 @@ public class DrivingDummyRefreshService {
                     FileProcessResult result = transactionTemplate.execute(status -> {
                         IngestionSummary summary = ingestionService.ingest(batch);
                         int updated = aggregationService.refreshSummaries(summary.affectedUserDates());
+                        // 주행 반영으로 영향받은 기간의 미션 진행도도 같은 흐름에서 즉시 갱신한다.
+                        int missionUpdated = missionProgressUpdateService.refreshProgress(summary.affectedUserDates());
                         return new FileProcessResult(
                                 summary.insertedSessions(),
                                 summary.insertedEvents(),
-                                updated
+                                updated,
+                                missionUpdated
                         );
                     });
 
@@ -60,15 +66,17 @@ public class DrivingDummyRefreshService {
                     insertedSessions += result.insertedSessions();
                     insertedEvents += result.insertedEvents();
                     updatedUsers += result.updatedUsers();
+                    updatedMissions += result.updatedMissions();
                     batchIds.add(batch.batchId());
 
                     log.info(
-                            "Processed pending driving batch file successfully. file={}, batchId={}, insertedSessions={}, insertedEvents={}, updatedUsers={}",
+                            "Processed pending driving batch file successfully. file={}, batchId={}, insertedSessions={}, insertedEvents={}, updatedUsers={}, updatedMissions={}",
                             file,
                             batch.batchId(),
                             result.insertedSessions(),
                             result.insertedEvents(),
-                            result.updatedUsers()
+                            result.updatedUsers(),
+                            result.updatedMissions()
                     );
                 } catch (Exception e) {
                     failedFiles++;
@@ -87,11 +95,12 @@ public class DrivingDummyRefreshService {
         }
 
         log.info(
-                "Finished pending driving batch refresh. processedBatches={}, insertedSessions={}, insertedEvents={}, updatedUsers={}, failedFiles={}, batchIds={}",
+                "Finished pending driving batch refresh. processedBatches={}, insertedSessions={}, insertedEvents={}, updatedUsers={}, updatedMissions={}, failedFiles={}, batchIds={}",
                 processedBatches,
                 insertedSessions,
                 insertedEvents,
                 updatedUsers,
+                updatedMissions,
                 failedFiles,
                 batchIds
         );
@@ -109,7 +118,8 @@ public class DrivingDummyRefreshService {
     private record FileProcessResult(
             int insertedSessions,
             int insertedEvents,
-            int updatedUsers
+            int updatedUsers,
+            int updatedMissions
     ) {
     }
 }
