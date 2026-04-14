@@ -77,3 +77,6 @@ cloud:
       static: ap-northeast-2
     s3:
       bucket: ${AWS_BUCKET_NAME}
+
+juso:
+  confirm-key: ${JUSO_CONFIRM_KEY}
