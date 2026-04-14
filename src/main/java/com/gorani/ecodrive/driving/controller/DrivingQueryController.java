@@ -27,6 +27,9 @@ import java.util.List;
 @RequestMapping("/api/driving")
 public class DrivingQueryController {
 
+    private static final int MAX_RECENT_SESSION_LIMIT = 180;
+    private static final int MAX_SCORE_HISTORY_LIMIT = 20;
+
     private final DrivingQueryService drivingQueryService;
 
     @GetMapping("/scores/latest")
@@ -46,7 +49,10 @@ public class DrivingQueryController {
     ) {
         return ApiResponse.success(
                 "최근 주행 세션 조회 성공",
-                drivingQueryService.getRecentSessions(principal.getUserId(), Math.max(1, Math.min(limit, 20)))
+                drivingQueryService.getRecentSessions(
+                        principal.getUserId(),
+                        Math.max(1, Math.min(limit, MAX_RECENT_SESSION_LIMIT))
+                )
         );
     }
 
@@ -125,7 +131,10 @@ public class DrivingQueryController {
     ) {
         return ApiResponse.success(
                 "점수 변화 이력 조회 성공",
-                drivingQueryService.getScoreHistory(principal.getUserId(), Math.max(1, Math.min(limit, 20)))
+                drivingQueryService.getScoreHistory(
+                        principal.getUserId(),
+                        Math.max(1, Math.min(limit, MAX_SCORE_HISTORY_LIMIT))
+                )
         );
     }
 }
