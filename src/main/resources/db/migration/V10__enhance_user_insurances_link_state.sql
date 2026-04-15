@@ -17,6 +17,27 @@ BEGIN
     END IF;
 END $$;
 
+WITH ranked_user_insurances AS (
+    SELECT
+        id,
+        row_number() OVER (
+            PARTITION BY user_vehicle_id
+            ORDER BY created_at DESC NULLS LAST, id DESC
+        ) AS row_num
+    FROM user_insurances
+)
+UPDATE user_insurances ui
+SET status = CASE
+                 WHEN ranked.row_num = 1 THEN 'ACTIVE'
+                 ELSE 'INACTIVE'
+             END,
+    ended_at = CASE
+                   WHEN ranked.row_num = 1 THEN ui.ended_at
+                   ELSE COALESCE(ui.ended_at, CURRENT_TIMESTAMP)
+               END
+FROM ranked_user_insurances ranked
+WHERE ui.id = ranked.id;
+
 CREATE UNIQUE INDEX IF NOT EXISTS uq_user_insurances_active_vehicle
     ON user_insurances (user_vehicle_id)
     WHERE status = 'ACTIVE';

@@ -33,19 +33,33 @@ CREATE INDEX IF NOT EXISTS idx_users_representative_user_vehicle_id
 ALTER TABLE driving_score_snapshots
     ADD COLUMN IF NOT EXISTS user_vehicle_id BIGINT;
 
+WITH selected_user_vehicles AS (
+    SELECT DISTINCT ON (user_id)
+        user_id,
+        id
+    FROM user_vehicles
+    ORDER BY user_id, registered_at DESC, id DESC
+)
 UPDATE driving_score_snapshots dss
-SET user_vehicle_id = uv.id
-FROM user_vehicles uv
-WHERE dss.user_id = uv.user_id
+SET user_vehicle_id = suv.id
+FROM selected_user_vehicles suv
+WHERE dss.user_id = suv.user_id
   AND dss.user_vehicle_id IS NULL;
 
 ALTER TABLE carbon_reduction_snapshots
     ADD COLUMN IF NOT EXISTS user_vehicle_id BIGINT;
 
+WITH selected_user_vehicles AS (
+    SELECT DISTINCT ON (user_id)
+        user_id,
+        id
+    FROM user_vehicles
+    ORDER BY user_id, registered_at DESC, id DESC
+)
 UPDATE carbon_reduction_snapshots crs
-SET user_vehicle_id = uv.id
-FROM user_vehicles uv
-WHERE crs.user_id = uv.user_id
+SET user_vehicle_id = suv.id
+FROM selected_user_vehicles suv
+WHERE crs.user_id = suv.user_id
   AND crs.user_vehicle_id IS NULL;
 
 ALTER TABLE driving_score_snapshots
@@ -53,6 +67,48 @@ ALTER TABLE driving_score_snapshots
 
 ALTER TABLE carbon_reduction_snapshots
     ALTER COLUMN user_vehicle_id SET NOT NULL;
+
+WITH ranked_score_snapshots AS (
+    SELECT
+        id,
+        row_number() OVER (
+            PARTITION BY user_vehicle_id, snapshot_date
+            ORDER BY created_at DESC NULLS LAST, id DESC
+        ) AS row_num
+    FROM driving_score_snapshots
+)
+DELETE FROM driving_score_change_logs dcl
+USING ranked_score_snapshots ranked
+WHERE dcl.snapshot_id = ranked.id
+  AND ranked.row_num > 1;
+
+WITH ranked_score_snapshots AS (
+    SELECT
+        id,
+        row_number() OVER (
+            PARTITION BY user_vehicle_id, snapshot_date
+            ORDER BY created_at DESC NULLS LAST, id DESC
+        ) AS row_num
+    FROM driving_score_snapshots
+)
+DELETE FROM driving_score_snapshots dss
+USING ranked_score_snapshots ranked
+WHERE dss.id = ranked.id
+  AND ranked.row_num > 1;
+
+WITH ranked_carbon_snapshots AS (
+    SELECT
+        id,
+        row_number() OVER (
+            PARTITION BY user_vehicle_id, snapshot_date
+            ORDER BY created_at DESC NULLS LAST, id DESC
+        ) AS row_num
+    FROM carbon_reduction_snapshots
+)
+DELETE FROM carbon_reduction_snapshots crs
+USING ranked_carbon_snapshots ranked
+WHERE crs.id = ranked.id
+  AND ranked.row_num > 1;
 
 DO $$
 BEGIN

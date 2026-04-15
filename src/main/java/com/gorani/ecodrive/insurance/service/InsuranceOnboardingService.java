@@ -85,6 +85,7 @@ public class InsuranceOnboardingService {
                 from user_vehicles
                 where id = ?
                   and user_id = ?
+                for update
                 limit 1
                 """,
                 rs -> rs.next() ? rs.getLong("id") : null,
@@ -96,32 +97,19 @@ public class InsuranceOnboardingService {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        Long activeUserInsuranceId = jdbcTemplate.query(
+        jdbcTemplate.update(
                 """
-                select id
-                from user_insurances
+                update user_insurances
+                set status = 'INACTIVE',
+                    ended_at = ?
                 where user_id = ?
                   and user_vehicle_id = ?
                   and status = 'ACTIVE'
-                limit 1
                 """,
-                rs -> rs.next() ? rs.getLong("id") : null,
+                Timestamp.valueOf(LocalDateTime.now()),
                 userId,
                 requestedUserVehicleId
         );
-
-        if (activeUserInsuranceId != null) {
-            jdbcTemplate.update(
-                    """
-                    update user_insurances
-                    set status = 'INACTIVE',
-                        ended_at = ?
-                    where id = ?
-                    """,
-                    Timestamp.valueOf(LocalDateTime.now()),
-                    activeUserInsuranceId
-            );
-        }
 
         return existing;
     }

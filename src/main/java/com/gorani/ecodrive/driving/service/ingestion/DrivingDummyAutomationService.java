@@ -7,6 +7,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Path;
+import java.util.List;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -58,7 +61,11 @@ public class DrivingDummyAutomationService {
                 userVehicleId,
                 fileManager.getPendingDir()
         );
-        DummyDrivingRefreshResult refresh = refreshService.refreshPendingBatches();
+        List<Path> generatedFiles = generation.generatedFiles()
+                .stream()
+                .map(Path::of)
+                .toList();
+        DummyDrivingRefreshResult refresh = refreshService.refreshPendingBatches(generatedFiles);
         log.info(
                 "Driving dummy automation completed for selected vehicle. userId={}, userVehicleId={}, generatedBatches={}, attemptedUsers={}, processedBatches={}, insertedSessions={}, insertedEvents={}, updatedUsers={}, failedFiles={}",
                 userId,

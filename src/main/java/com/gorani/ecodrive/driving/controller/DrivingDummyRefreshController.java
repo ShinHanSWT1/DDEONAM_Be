@@ -1,5 +1,7 @@
 package com.gorani.ecodrive.driving.controller;
 
+import com.gorani.ecodrive.common.exception.CustomException;
+import com.gorani.ecodrive.common.exception.ErrorCode;
 import com.gorani.ecodrive.common.response.ApiResponse;
 import com.gorani.ecodrive.common.security.CustomUserPrincipal;
 import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingAutomationResult;
@@ -28,13 +30,16 @@ public class DrivingDummyRefreshController {
             @AuthenticationPrincipal CustomUserPrincipal principal,
             @RequestBody(required = false) GenerateDummyDrivingRequest request
     ) {
+        if (request == null || request.userVehicleId() == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
         log.info("Driving dummy generate+refresh requested. userId={}", principal.getUserId());
-        DummyDrivingAutomationResult result = request != null && request.userVehicleId() != null
-                ? drivingDummyAutomationService.generateAndRefreshForUserVehicle(
+        DummyDrivingAutomationResult result =
+                drivingDummyAutomationService.generateAndRefreshForUserVehicle(
                 principal.getUserId(),
                 request.userVehicleId()
-        )
-                : drivingDummyAutomationService.generateAndRefreshForUser(principal.getUserId());
+        );
         log.info(
                 "Driving dummy generate+refresh completed. userId={}, generatedBatches={}, attemptedUsers={}, processedBatches={}, insertedSessions={}, insertedEvents={}, updatedUsers={}, failedFiles={}",
                 principal.getUserId(),
