@@ -215,6 +215,7 @@ public class PayIntegrationService {
 
         return new PayTransactionResponse(
                 payload.id(),
+                payload.transactionType(),
                 title,
                 date,
                 payload.amount(),
