@@ -3,6 +3,7 @@ package com.gorani.ecodrive.user.service;
 import com.gorani.ecodrive.common.exception.CustomException;
 import com.gorani.ecodrive.common.exception.ErrorCode;
 import com.gorani.ecodrive.infra.s3.S3Service;
+import com.gorani.ecodrive.insurance.domain.UserInsuranceStatus;
 import com.gorani.ecodrive.insurance.repository.UserInsuranceRepository;
 import com.gorani.ecodrive.user.domain.User;
 import com.gorani.ecodrive.user.repository.UserRepository;
@@ -30,7 +31,10 @@ public class UserService {
     @Transactional(readOnly = true)
     public boolean calculateOnboardingCompleted(Long userId) {
         boolean hasVehicle = userVehicleRepository.existsByUserId(userId);
-        boolean hasLinkedInsurance = userInsuranceRepository.existsByUser_Id(userId);
+        boolean hasLinkedInsurance = userInsuranceRepository.existsByUser_IdAndStatus(
+                userId,
+                UserInsuranceStatus.ACTIVE
+        );
         return hasVehicle && hasLinkedInsurance;
     }
 
@@ -48,5 +52,16 @@ public class UserService {
         );
 
         return imageUrl;
+    }
+
+    @Transactional
+    public void updateRepresentativeVehicle(Long userId, Long userVehicleId) {
+        User user = getById(userId);
+
+        if (!userVehicleRepository.existsByIdAndUser_Id(userVehicleId, userId)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        user.updateRepresentativeUserVehicleId(userVehicleId);
     }
 }

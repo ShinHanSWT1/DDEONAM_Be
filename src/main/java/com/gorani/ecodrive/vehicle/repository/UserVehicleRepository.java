@@ -5,4 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface UserVehicleRepository extends JpaRepository<UserVehicle, Long> {
     boolean existsByUserId(Long userId);
+
+    boolean existsByIdAndUser_Id(Long id, Long userId);
 }

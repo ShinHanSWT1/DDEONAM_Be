@@ -29,22 +29,33 @@ public class DrivingQueryService {
     private final JdbcTemplate jdbcTemplate;
 
     public DrivingLatestScoreResponse getLatestScore(Long userId) {
+        return getLatestScore(userId, null);
+    }
+
+    public DrivingLatestScoreResponse getLatestScore(Long userId, Long userVehicleId) {
         LocalDate currentMonthStart = LocalDate.now().withDayOfMonth(1);
         return jdbcTemplate.query("""
                         select snapshot_date, score
                         from driving_score_snapshots
                         where user_id = ?
+                          and (? is null or user_vehicle_id = ?)
                           and snapshot_date >= ?
                         order by snapshot_date desc, id desc
                         limit 1
                         """,
                 rs -> rs.next() ? mapLatestScore(rs) : new DrivingLatestScoreResponse(null, null),
                 userId,
+                userVehicleId,
+                userVehicleId,
                 currentMonthStart
         );
     }
 
     public List<DrivingRecentSessionResponse> getRecentSessions(Long userId, int limit) {
+        return getRecentSessions(userId, null, limit);
+    }
+
+    public List<DrivingRecentSessionResponse> getRecentSessions(Long userId, Long userVehicleId, int limit) {
         return jdbcTemplate.query("""
                         select
                             id,
@@ -59,16 +70,23 @@ public class DrivingQueryService {
                             max_speed
                         from driving_sessions
                         where user_id = ?
+                          and (? is null or user_vehicle_id = ?)
                         order by started_at desc, id desc
                         limit ?
                         """,
                 recentSessionRowMapper(),
                 userId,
+                userVehicleId,
+                userVehicleId,
                 limit
         );
     }
 
     public DrivingLatestCarbonResponse getLatestCarbon(Long userId) {
+        return getLatestCarbon(userId, null);
+    }
+
+    public DrivingLatestCarbonResponse getLatestCarbon(Long userId, Long userVehicleId) {
         LocalDate currentMonthStart = LocalDate.now().withDayOfMonth(1);
         return jdbcTemplate.query("""
                         select
@@ -77,17 +95,24 @@ public class DrivingQueryService {
                             reward_point
                         from carbon_reduction_snapshots
                         where user_id = ?
+                          and (? is null or user_vehicle_id = ?)
                           and snapshot_date >= ?
                         order by snapshot_date desc, id desc
                         limit 1
                         """,
                 rs -> rs.next() ? mapLatestCarbon(rs) : new DrivingLatestCarbonResponse(null, null, null),
                 userId,
+                userVehicleId,
+                userVehicleId,
                 currentMonthStart
         );
     }
 
     public DrivingDailySummaryResponse getDailySummary(Long userId, LocalDate date) {
+        return getDailySummary(userId, null, date);
+    }
+
+    public DrivingDailySummaryResponse getDailySummary(Long userId, Long userVehicleId, LocalDate date) {
         return jdbcTemplate.query("""
                         select
                             s.session_date,
@@ -105,16 +130,23 @@ public class DrivingQueryService {
                         from driving_sessions s
                         left join driving_events e on e.driving_session_id = s.id
                         where s.user_id = ?
+                          and (? is null or s.user_vehicle_id = ?)
                           and s.session_date = ?
                         group by s.session_date
                         """,
                 rs -> rs.next() ? mapDailySummary(rs) : emptyDailySummary(date),
                 userId,
+                userVehicleId,
+                userVehicleId,
                 date
         );
     }
 
     public DrivingBehaviorSummaryResponse getBehaviorSummary(Long userId, LocalDate date) {
+        return getBehaviorSummary(userId, null, date);
+    }
+
+    public DrivingBehaviorSummaryResponse getBehaviorSummary(Long userId, Long userVehicleId, LocalDate date) {
         return jdbcTemplate.query("""
                         select
                             ? as session_date,
@@ -131,16 +163,23 @@ public class DrivingQueryService {
                         from driving_sessions s
                         left join driving_events e on e.driving_session_id = s.id
                         where s.user_id = ?
+                          and (? is null or s.user_vehicle_id = ?)
                           and s.session_date = ?
                         """,
                 rs -> rs.next() ? mapBehaviorSummary(rs) : emptyBehaviorSummary(date),
                 date,
                 userId,
+                userVehicleId,
+                userVehicleId,
                 date
         );
     }
 
     public List<DrivingWeeklySummaryResponse> getWeeklySummaries(Long userId, int year, int month) {
+        return getWeeklySummaries(userId, null, year, month);
+    }
+
+    public List<DrivingWeeklySummaryResponse> getWeeklySummaries(Long userId, Long userVehicleId, int year, int month) {
         return jdbcTemplate.query("""
                         with daily_metrics as (
                             select
@@ -153,6 +192,7 @@ public class DrivingQueryService {
                                 coalesce(max(s.max_speed), 0) as max_speed
                             from driving_sessions s
                             where s.user_id = ?
+                              and (? is null or s.user_vehicle_id = ?)
                               and extract(year from s.session_date) = ?
                               and extract(month from s.session_date) = ?
                             group by s.session_date
@@ -175,6 +215,8 @@ public class DrivingQueryService {
                         """,
                 weeklySummaryRowMapper(),
                 userId,
+                userVehicleId,
+                userVehicleId,
                 year,
                 month,
                 year,
@@ -183,6 +225,10 @@ public class DrivingQueryService {
     }
 
     public DrivingMonthlySummaryResponse getMonthlySummary(Long userId, int year, int month) {
+        return getMonthlySummary(userId, null, year, month);
+    }
+
+    public DrivingMonthlySummaryResponse getMonthlySummary(Long userId, Long userVehicleId, int year, int month) {
         return jdbcTemplate.query("""
                         with session_metrics as (
                             select
@@ -195,6 +241,7 @@ public class DrivingQueryService {
                                 coalesce(max(max_speed), 0) as max_speed
                             from driving_sessions
                             where user_id = ?
+                              and (? is null or user_vehicle_id = ?)
                               and extract(year from session_date) = ?
                               and extract(month from session_date) = ?
                         ),
@@ -206,6 +253,7 @@ public class DrivingQueryService {
                             from driving_events e
                             join driving_sessions s on e.driving_session_id = s.id
                             where e.user_id = ?
+                              and (? is null or s.user_vehicle_id = ?)
                               and extract(year from s.session_date) = ?
                               and extract(month from s.session_date) = ?
                         ),
@@ -215,6 +263,7 @@ public class DrivingQueryService {
                                 reward_point
                             from carbon_reduction_snapshots
                             where user_id = ?
+                              and (? is null or user_vehicle_id = ?)
                               and extract(year from snapshot_date) = ?
                               and extract(month from snapshot_date) = ?
                             order by snapshot_date desc, id desc
@@ -252,12 +301,18 @@ public class DrivingQueryService {
                         ? mapMonthlySummary(rs)
                         : emptyMonthlySummary(year, month),
                 userId,
+                userVehicleId,
+                userVehicleId,
                 year,
                 month,
                 userId,
+                userVehicleId,
+                userVehicleId,
                 year,
                 month,
                 userId,
+                userVehicleId,
+                userVehicleId,
                 year,
                 month,
                 year,
@@ -266,31 +321,46 @@ public class DrivingQueryService {
     }
 
     public List<DrivingScoreTrendResponse> getScoreTrend(Long userId, int year, int month) {
+        return getScoreTrend(userId, null, year, month);
+    }
+
+    public List<DrivingScoreTrendResponse> getScoreTrend(Long userId, Long userVehicleId, int year, int month) {
         return jdbcTemplate.query("""
                         select snapshot_date, score
                         from driving_score_snapshots
                         where user_id = ?
+                          and (? is null or user_vehicle_id = ?)
                           and extract(year from snapshot_date) = ?
                           and extract(month from snapshot_date) = ?
                         order by snapshot_date asc, id asc
                         """,
                 scoreTrendRowMapper(),
                 userId,
+                userVehicleId,
+                userVehicleId,
                 year,
                 month
         );
     }
 
     public List<DrivingScoreHistoryResponse> getScoreHistory(Long userId, int limit) {
+        return getScoreHistory(userId, null, limit);
+    }
+
+    public List<DrivingScoreHistoryResponse> getScoreHistory(Long userId, Long userVehicleId, int limit) {
         return jdbcTemplate.query("""
-                        select id, change_type, message, score_delta, change_date
-                        from driving_score_change_logs
-                        where user_id = ?
-                        order by change_date desc, display_order asc, id desc
+                        select dcl.id, dcl.change_type, dcl.message, dcl.score_delta, dcl.change_date
+                        from driving_score_change_logs dcl
+                        join driving_score_snapshots dss on dss.id = dcl.snapshot_id
+                        where dcl.user_id = ?
+                          and (? is null or dss.user_vehicle_id = ?)
+                        order by dcl.change_date desc, dcl.display_order asc, dcl.id desc
                         limit ?
                         """,
                 scoreHistoryRowMapper(),
                 userId,
+                userVehicleId,
+                userVehicleId,
                 limit
         );
     }

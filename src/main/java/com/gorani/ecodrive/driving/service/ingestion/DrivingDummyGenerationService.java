@@ -57,6 +57,13 @@ public class DrivingDummyGenerationService {
         return generateTodayBatches(outputDir, List.of(target));
     }
 
+    public DummyDrivingGenerationResult generateTodayBatchesForUserVehicle(Long userId, Long userVehicleId, Path outputDir) {
+        validateUserExists(userId);
+        GenerationTarget target = resolveTargetForUserVehicle(userId, userVehicleId);
+        log.info("Resolved generation target for user vehicle. userId={}, userVehicleId={}", target.userId(), target.userVehicleId());
+        return generateTodayBatches(outputDir, List.of(target));
+    }
+
     private DummyDrivingGenerationResult generateTodayBatches(Path outputDir, List<GenerationTarget> targets) {
         LocalDateTime runAt = LocalDateTime.now();
         List<String> generatedFiles = new ArrayList<>();
@@ -135,20 +142,10 @@ public class DrivingDummyGenerationService {
 
     private List<GenerationTarget> resolveAllActiveTargets() {
         List<GenerationTarget> targets = jdbcTemplate.query("""
-                        select ranked.user_id, ranked.user_vehicle_id
-                        from (
-                            select
-                                uv.user_id,
-                                uv.id as user_vehicle_id,
-                                row_number() over (
-                                    partition by uv.user_id
-                                    order by uv.updated_at desc, uv.id desc
-                                ) as rn
-                            from user_vehicles uv
-                            where uv.status = 'ACTIVE'
-                        ) ranked
-                        where ranked.rn = 1
-                        order by ranked.user_id asc
+                        select uv.user_id, uv.id as user_vehicle_id
+                        from user_vehicles uv
+                        where uv.status = 'ACTIVE'
+                        order by uv.user_id asc, uv.registered_at asc, uv.id asc
                         """,
                 (rs, rowNum) -> new GenerationTarget(
                         rs.getLong("user_id"),
@@ -167,9 +164,12 @@ public class DrivingDummyGenerationService {
         GenerationTarget target = jdbcTemplate.query("""
                         select uv.user_id, uv.id as user_vehicle_id
                         from user_vehicles uv
+                        join users u on u.id = uv.user_id
                         where uv.user_id = ?
                           and uv.status = 'ACTIVE'
-                        order by uv.updated_at desc, uv.id desc
+                        order by case when uv.id = u.representative_user_vehicle_id then 0 else 1 end,
+                                 uv.registered_at desc,
+                                 uv.id desc
                         limit 1
                         """,
                 rs -> rs.next()
@@ -185,6 +185,33 @@ public class DrivingDummyGenerationService {
             log.warn("No active vehicle target found for user. userId={}", userId);
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
+        return target;
+    }
+
+    private GenerationTarget resolveTargetForUserVehicle(Long userId, Long userVehicleId) {
+        GenerationTarget target = jdbcTemplate.query("""
+                        select uv.user_id, uv.id as user_vehicle_id
+                        from user_vehicles uv
+                        where uv.user_id = ?
+                          and uv.id = ?
+                          and uv.status = 'ACTIVE'
+                        limit 1
+                        """,
+                rs -> rs.next()
+                        ? new GenerationTarget(
+                        rs.getLong("user_id"),
+                        rs.getLong("user_vehicle_id")
+                )
+                        : null,
+                userId,
+                userVehicleId
+        );
+
+        if (target == null) {
+            log.warn("No active vehicle target found for user vehicle. userId={}, userVehicleId={}", userId, userVehicleId);
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
         return target;
     }
 

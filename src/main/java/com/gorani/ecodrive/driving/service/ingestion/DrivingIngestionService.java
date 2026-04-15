@@ -53,7 +53,7 @@ public class DrivingIngestionService {
 
             Long sessionId = insertSession(session);
             insertedSessions++;
-            affectedUserDates.add(new UserDateKey(session.userId(), session.sessionDate()));
+            affectedUserDates.add(new UserDateKey(session.userId(), session.userVehicleId(), session.sessionDate()));
 
             List<DummyDrivingEventPayload> events = session.events() == null ? List.of() : session.events();
             for (DummyDrivingEventPayload event : events) {
@@ -173,6 +173,6 @@ public class DrivingIngestionService {
     ) {
     }
 
-    public record UserDateKey(Long userId, LocalDate sessionDate) {
+    public record UserDateKey(Long userId, Long userVehicleId, LocalDate sessionDate) {
     }
 }

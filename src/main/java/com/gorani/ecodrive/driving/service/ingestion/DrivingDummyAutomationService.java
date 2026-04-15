@@ -50,4 +50,27 @@ public class DrivingDummyAutomationService {
         );
         return new DummyDrivingAutomationResult(generation, refresh);
     }
+
+    public DummyDrivingAutomationResult generateAndRefreshForUserVehicle(Long userId, Long userVehicleId) {
+        log.info("Driving dummy automation started for a selected vehicle. userId={}, userVehicleId={}, pendingDir={}", userId, userVehicleId, fileManager.getPendingDir());
+        DummyDrivingGenerationResult generation = generationService.generateTodayBatchesForUserVehicle(
+                userId,
+                userVehicleId,
+                fileManager.getPendingDir()
+        );
+        DummyDrivingRefreshResult refresh = refreshService.refreshPendingBatches();
+        log.info(
+                "Driving dummy automation completed for selected vehicle. userId={}, userVehicleId={}, generatedBatches={}, attemptedUsers={}, processedBatches={}, insertedSessions={}, insertedEvents={}, updatedUsers={}, failedFiles={}",
+                userId,
+                userVehicleId,
+                generation.generatedBatches(),
+                generation.attemptedUsers(),
+                refresh.processedBatches(),
+                refresh.insertedSessions(),
+                refresh.insertedEvents(),
+                refresh.updatedUsers(),
+                refresh.failedFiles()
+        );
+        return new DummyDrivingAutomationResult(generation, refresh);
+    }
 }

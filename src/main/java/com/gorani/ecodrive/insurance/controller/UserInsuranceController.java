@@ -26,6 +26,7 @@ public class UserInsuranceController {
         List<InsuranceResponse> result = insurances.stream()
                 .map(i -> new InsuranceResponse(
                         i.getId(),
+                        i.getUserVehicleId(),
                         i.getInsuranceCompany().getId(),
                         i.getInsuranceCompany().getCompanyName(),
                         i.getInsuranceProduct().getId(),
@@ -34,6 +35,7 @@ public class UserInsuranceController {
                         i.getInsuranceContract().getPlanType() != null ? i.getInsuranceContract().getPlanType().name() : null,
                         i.getInsuranceContract().getBaseAmount(),
                         i.getInsuranceContract().getFinalAmount(),
+                        i.getStatus().name(),
                         i.getCreatedAt()
                 ))
                 .toList();
@@ -48,6 +50,7 @@ public class UserInsuranceController {
         UserInsurance insurance = userInsuranceService.getMyInsurance(insuranceId, principal.getUserId());
         return ApiResponse.success(new InsuranceDetailResponse(
                 insurance.getId(),
+                insurance.getUserVehicleId(),
                 insurance.getInsuranceCompany().getId(),
                 insurance.getInsuranceCompany().getCompanyName(),
                 insurance.getInsuranceProduct().getId(),
@@ -58,6 +61,7 @@ public class UserInsuranceController {
                 insurance.getInsuranceContract().getFinalAmount(),
                 insurance.getInsuranceContract().getStartedAt(),
                 insurance.getInsuranceContract().getEndedAt(),
+                insurance.getStatus().name(),
                 insurance.getCreatedAt()
         ));
     }
@@ -77,18 +81,18 @@ public class UserInsuranceController {
         ));
     }
 
-    public record InsuranceResponse(Long id, Long insuranceCompanyId, String companyName,
+    public record InsuranceResponse(Long id, Long userVehicleId, Long insuranceCompanyId, String companyName,
                                     Long insuranceProductId, String productName,
                                     Long insuranceContractsId, String planType, 
-                                    Integer baseAmount, Integer finalAmount,
+                                    Integer baseAmount, Integer finalAmount, String status,
                                     LocalDateTime createdAt) {}
     public record InsuranceListResponse(List<InsuranceResponse> insurances) {}
-    public record InsuranceDetailResponse(Long id, Long insuranceCompanyId, String companyName,
+    public record InsuranceDetailResponse(Long id, Long userVehicleId, Long insuranceCompanyId, String companyName,
                                           Long insuranceProductId, String productName,
                                           Long insuranceContractsId, String planType,
                                           Integer baseAmount, Integer finalAmount, 
                                           LocalDateTime startedAt, LocalDateTime endedAt, 
-                                          LocalDateTime createdAt) {}
+                                          String status, LocalDateTime createdAt) {}
     public record ConfirmInsuranceRequest(Long insuranceContractsId, Long userVehicleId) {}
     public record ConfirmInsuranceResponse(Long id, String status, Integer finalAmount, LocalDateTime createdAt) {}
 }

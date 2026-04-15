@@ -40,18 +40,33 @@ public class UserInsurance {
     @JoinColumn(name = "insurance_contracts_id", nullable = false)
     private InsuranceContract insuranceContract;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private UserInsuranceStatus status;
+
+    @Column(name = "ended_at")
+    private LocalDateTime endedAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @Builder
     public UserInsurance(User user, Long userVehicleId, InsuranceCompany insuranceCompany,
                          InsuranceProduct insuranceProduct, InsuranceContract insuranceContract,
+                         UserInsuranceStatus status, LocalDateTime endedAt,
                          LocalDateTime createdAt) {
         this.user = user;
         this.userVehicleId = userVehicleId;
         this.insuranceCompany = insuranceCompany;
         this.insuranceProduct = insuranceProduct;
         this.insuranceContract = insuranceContract;
+        this.status = status;
+        this.endedAt = endedAt;
         this.createdAt = createdAt;
+    }
+
+    public void deactivate(LocalDateTime endedAt) {
+        this.status = UserInsuranceStatus.INACTIVE;
+        this.endedAt = endedAt;
     }
 }
