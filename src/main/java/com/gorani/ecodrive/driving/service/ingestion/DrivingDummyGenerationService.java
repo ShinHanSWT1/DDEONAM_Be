@@ -357,7 +357,26 @@ public class DrivingDummyGenerationService {
         }
 
         log.debug("Driving dummy python script completed. output={}", output);
-        return output;
+        return extractGeneratedPath(output);
+    }
+
+    private String extractGeneratedPath(String output) {
+        if (output == null || output.isBlank()) {
+            throw new IllegalStateException("Driving dummy python script returned empty output.");
+        }
+
+        String[] lines = output.split("\\R");
+        for (int index = lines.length - 1; index >= 0; index--) {
+            String line = lines[index].trim();
+            if (line.startsWith("generated:")) {
+                String generatedPath = line.substring("generated:".length()).trim();
+                if (!generatedPath.isEmpty()) {
+                    return generatedPath;
+                }
+            }
+        }
+
+        throw new IllegalStateException("Driving dummy python script output does not contain generated path. output=" + output);
     }
 
     private record GenerationTarget(

@@ -28,6 +28,10 @@ public class DrivingQueryService {
 
     private final JdbcTemplate jdbcTemplate;
 
+    private String optionalVehicleFilter(String columnName) {
+        return " and (cast(? as bigint) is null or " + columnName + " = cast(? as bigint))";
+    }
+
     public DrivingLatestScoreResponse getLatestScore(Long userId) {
         return getLatestScore(userId, null);
     }
@@ -38,11 +42,11 @@ public class DrivingQueryService {
                         select snapshot_date, score
                         from driving_score_snapshots
                         where user_id = ?
-                          and (? is null or user_vehicle_id = ?)
+                        """.concat(optionalVehicleFilter("user_vehicle_id")).concat("""
                           and snapshot_date >= ?
                         order by snapshot_date desc, id desc
                         limit 1
-                        """,
+                        """),
                 rs -> rs.next() ? mapLatestScore(rs) : new DrivingLatestScoreResponse(null, null),
                 userId,
                 userVehicleId,
@@ -70,10 +74,10 @@ public class DrivingQueryService {
                             max_speed
                         from driving_sessions
                         where user_id = ?
-                          and (? is null or user_vehicle_id = ?)
+                        """.concat(optionalVehicleFilter("user_vehicle_id")).concat("""
                         order by started_at desc, id desc
                         limit ?
-                        """,
+                        """),
                 recentSessionRowMapper(),
                 userId,
                 userVehicleId,
@@ -95,11 +99,11 @@ public class DrivingQueryService {
                             reward_point
                         from carbon_reduction_snapshots
                         where user_id = ?
-                          and (? is null or user_vehicle_id = ?)
+                        """.concat(optionalVehicleFilter("user_vehicle_id")).concat("""
                           and snapshot_date >= ?
                         order by snapshot_date desc, id desc
                         limit 1
-                        """,
+                        """),
                 rs -> rs.next() ? mapLatestCarbon(rs) : new DrivingLatestCarbonResponse(null, null, null),
                 userId,
                 userVehicleId,
@@ -130,10 +134,10 @@ public class DrivingQueryService {
                         from driving_sessions s
                         left join driving_events e on e.driving_session_id = s.id
                         where s.user_id = ?
-                          and (? is null or s.user_vehicle_id = ?)
+                        """.concat(optionalVehicleFilter("s.user_vehicle_id")).concat("""
                           and s.session_date = ?
                         group by s.session_date
-                        """,
+                        """),
                 rs -> rs.next() ? mapDailySummary(rs) : emptyDailySummary(date),
                 userId,
                 userVehicleId,
@@ -163,9 +167,9 @@ public class DrivingQueryService {
                         from driving_sessions s
                         left join driving_events e on e.driving_session_id = s.id
                         where s.user_id = ?
-                          and (? is null or s.user_vehicle_id = ?)
+                        """.concat(optionalVehicleFilter("s.user_vehicle_id")).concat("""
                           and s.session_date = ?
-                        """,
+                        """),
                 rs -> rs.next() ? mapBehaviorSummary(rs) : emptyBehaviorSummary(date),
                 date,
                 userId,
@@ -192,7 +196,7 @@ public class DrivingQueryService {
                                 coalesce(max(s.max_speed), 0) as max_speed
                             from driving_sessions s
                             where s.user_id = ?
-                              and (? is null or s.user_vehicle_id = ?)
+                        """.concat(optionalVehicleFilter("s.user_vehicle_id")).concat("""
                               and extract(year from s.session_date) = ?
                               and extract(month from s.session_date) = ?
                             group by s.session_date
@@ -212,7 +216,7 @@ public class DrivingQueryService {
                         from daily_metrics
                         group by week_of_month
                         order by week_of_month
-                        """,
+                        """),
                 weeklySummaryRowMapper(),
                 userId,
                 userVehicleId,
@@ -229,7 +233,7 @@ public class DrivingQueryService {
     }
 
     public DrivingMonthlySummaryResponse getMonthlySummary(Long userId, Long userVehicleId, int year, int month) {
-        return jdbcTemplate.query("""
+        String sql = """
                         with session_metrics as (
                             select
                                 count(*) as session_count,
@@ -241,7 +245,9 @@ public class DrivingQueryService {
                                 coalesce(max(max_speed), 0) as max_speed
                             from driving_sessions
                             where user_id = ?
-                              and (? is null or user_vehicle_id = ?)
+                        """
+                + optionalVehicleFilter("user_vehicle_id")
+                + """
                               and extract(year from session_date) = ?
                               and extract(month from session_date) = ?
                         ),
@@ -253,7 +259,9 @@ public class DrivingQueryService {
                             from driving_events e
                             join driving_sessions s on e.driving_session_id = s.id
                             where e.user_id = ?
-                              and (? is null or s.user_vehicle_id = ?)
+                        """
+                + optionalVehicleFilter("s.user_vehicle_id")
+                + """
                               and extract(year from s.session_date) = ?
                               and extract(month from s.session_date) = ?
                         ),
@@ -263,7 +271,9 @@ public class DrivingQueryService {
                                 reward_point
                             from carbon_reduction_snapshots
                             where user_id = ?
-                              and (? is null or user_vehicle_id = ?)
+                        """
+                + optionalVehicleFilter("user_vehicle_id")
+                + """
                               and extract(year from snapshot_date) = ?
                               and extract(month from snapshot_date) = ?
                             order by snapshot_date desc, id desc
@@ -296,7 +306,9 @@ public class DrivingQueryService {
                         from session_metrics sm
                         cross join event_metrics em
                         cross join carbon_metrics cm
-                        """,
+                        """;
+        return jdbcTemplate.query(
+                sql,
                 rs -> rs.next() && rs.getInt("session_count") > 0
                         ? mapMonthlySummary(rs)
                         : emptyMonthlySummary(year, month),
@@ -329,11 +341,11 @@ public class DrivingQueryService {
                         select snapshot_date, score
                         from driving_score_snapshots
                         where user_id = ?
-                          and (? is null or user_vehicle_id = ?)
+                        """.concat(optionalVehicleFilter("user_vehicle_id")).concat("""
                           and extract(year from snapshot_date) = ?
                           and extract(month from snapshot_date) = ?
                         order by snapshot_date asc, id asc
-                        """,
+                        """),
                 scoreTrendRowMapper(),
                 userId,
                 userVehicleId,
@@ -353,10 +365,10 @@ public class DrivingQueryService {
                         from driving_score_change_logs dcl
                         join driving_score_snapshots dss on dss.id = dcl.snapshot_id
                         where dcl.user_id = ?
-                          and (? is null or dss.user_vehicle_id = ?)
+                        """.concat(optionalVehicleFilter("dss.user_vehicle_id")).concat("""
                         order by dcl.change_date desc, dcl.display_order asc, dcl.id desc
                         limit ?
-                        """,
+                        """),
                 scoreHistoryRowMapper(),
                 userId,
                 userVehicleId,
