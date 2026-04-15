@@ -1,7 +1,9 @@
 package com.gorani.ecodrive.insurance.service;
 
+import com.gorani.ecodrive.common.email.EmailService;
 import com.gorani.ecodrive.common.exception.CustomException;
 import com.gorani.ecodrive.common.exception.ErrorCode;
+import com.gorani.ecodrive.common.pdf.PdfService;
 import com.gorani.ecodrive.driving.service.query.DrivingQueryService;
 import com.gorani.ecodrive.insurance.controller.InsuranceContractController.CreateContractRequest;
 import com.gorani.ecodrive.insurance.domain.*;
@@ -11,6 +13,7 @@ import com.gorani.ecodrive.insurance.repository.InsuranceProductRepository;
 import com.gorani.ecodrive.user.domain.User;
 import com.gorani.ecodrive.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -30,6 +34,8 @@ public class InsuranceContractService {
     private final DiscountCalculationService discountCalculationService;
     private final UserRepository userRepository;
     private final DrivingQueryService drivingQueryService;
+    private final PdfService pdfService;
+    private final EmailService emailService;
 
     @Transactional
     public InsuranceContract createContract(Long userId, CreateContractRequest request) {
@@ -91,7 +97,32 @@ public class InsuranceContractService {
                 .finalAmount(finalAmount)
                 .build();
 
-        return insuranceContractRepository.save(contract);
+        InsuranceContract saved = insuranceContractRepository.save(contract);
+
+        // 8. 선택된 특약 조회
+        List<InsuranceCoverage> selectedCoverages = insuranceCoverageRepository
+                .findAllById(request.selectedCoverageIds());
+
+        // 9. PDF 생성 + 이메일 발송 (실패해도 계약은 유지)
+        String email = request.email() != null && !request.email().isBlank()
+                ? request.email()
+                : user.getEmail();
+
+        if (email != null && !email.isBlank()) {
+            try {
+                byte[] pdfBytes = pdfService.createContractPdf(
+                        saved,
+                        selectedCoverages,
+                        request.signatureImage(),
+                        user.getNickname()
+                );
+                emailService.sendContractEmail(email, user.getNickname(), pdfBytes);
+            } catch (Exception e) {
+                log.error("PDF 생성 또는 이메일 발송 실패 (계약은 정상 처리됨): {}", e.getMessage(), e);
+            }
+        }
+
+        return saved;
     }
 
     public InsuranceContract getContract(Long contractId, Long userId) {

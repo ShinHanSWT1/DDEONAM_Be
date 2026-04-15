@@ -49,6 +49,18 @@ spring:
   main:
     banner-mode: console
 
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
 logging:
   level:
     org.springframework.security.web: trace
@@ -80,3 +92,6 @@ cloud:
 
 juso:
   confirm-key: ${JUSO_CONFIRM_KEY}
+
+pdf:
+  font-path: ${PDF_FONT_PATH:C:/Windows/Fonts/malgunbd.ttf}
