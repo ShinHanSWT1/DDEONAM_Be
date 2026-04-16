@@ -105,6 +105,19 @@ public class GoraniPayClient {
         return response;
     }
 
+    public PayAccountPayload confirmCharge(Long payUserId, String paymentKey, String orderId, Integer amount) {
+        log.info("gorani_pay 토스 충전 승인 호출. payUserId={}, orderId={}, amount={}", payUserId, orderId, amount);
+        PayAccountPayload response = restTemplate.postForObject(
+                "/charge/confirm",
+                new HttpEntity<>(new ChargeConfirmPayload(payUserId, paymentKey, orderId, amount), headers()),
+                PayAccountPayload.class
+        );
+        if (response == null) {
+            throw new IllegalStateException("gorani_pay charge confirm response is empty");
+        }
+        return response;
+    }
+
     public PayPaymentPayload createPayment(CreatePaymentPayload request, String idempotencyKey) {
         log.info("gorani_pay 결제 생성 호출. payUserId={}, payAccountId={}, amount={}, externalOrderId={}",
                 request.payUserId(), request.payAccountId(), request.amount(), request.externalOrderId());
@@ -157,6 +170,14 @@ public class GoraniPayClient {
 
     private record AmountPayload(
             Long payUserId,
+            Integer amount
+    ) {
+    }
+
+    private record ChargeConfirmPayload(
+            Long payUserId,
+            String paymentKey,
+            String orderId,
             Integer amount
     ) {
     }

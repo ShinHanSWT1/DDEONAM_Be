@@ -2,6 +2,9 @@ package com.gorani.ecodrive.pay.controller;
 
 import com.gorani.ecodrive.common.response.ApiResponse;
 import com.gorani.ecodrive.common.security.CustomUserPrincipal;
+import com.gorani.ecodrive.pay.dto.PayChargeConfirmRequest;
+import com.gorani.ecodrive.pay.dto.PayChargePrepareRequest;
+import com.gorani.ecodrive.pay.dto.PayChargePrepareResponse;
 import com.gorani.ecodrive.pay.dto.PayChargeRequest;
 import com.gorani.ecodrive.pay.dto.PayCheckoutRequest;
 import com.gorani.ecodrive.pay.dto.PayCheckoutResponse;
@@ -61,6 +64,18 @@ public class PayIntegrationController {
         );
     }
 
+    @PostMapping("/charge/prepare")
+    public ApiResponse<PayChargePrepareResponse> prepareCharge(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @Valid @RequestBody PayChargePrepareRequest request
+    ) {
+        log.info("Pay 충전 준비 API 요청. userId={}, amount={}", principal.getUserId(), request.amount());
+        return ApiResponse.success(
+                "Pay 충전 준비 성공",
+                payIntegrationService.prepareCharge(principal.getUserId(), request)
+        );
+    }
+
     @PostMapping("/charge")
     public ApiResponse<PayWalletResponse> charge(
             @AuthenticationPrincipal CustomUserPrincipal principal,
@@ -70,6 +85,19 @@ public class PayIntegrationController {
         return ApiResponse.success(
                 "Pay 충전 성공",
                 payIntegrationService.charge(principal.getUserId(), request)
+        );
+    }
+
+    @PostMapping("/charge/confirm")
+    public ApiResponse<PayWalletResponse> confirmCharge(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @Valid @RequestBody PayChargeConfirmRequest request
+    ) {
+        log.info("Pay 토스 충전 승인 API 요청. userId={}, orderId={}, amount={}",
+                principal.getUserId(), request.orderId(), request.amount());
+        return ApiResponse.success(
+                "Pay 토스 충전 승인 성공",
+                payIntegrationService.confirmCharge(principal.getUserId(), request)
         );
     }
 

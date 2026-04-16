@@ -1,13 +1,13 @@
 package com.gorani.ecodrive.pay.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gorani.ecodrive.common.exception.CustomException;
 import com.gorani.ecodrive.common.exception.ErrorCode;
 import com.gorani.ecodrive.pay.client.GoraniPayClient;
-import com.gorani.ecodrive.pay.dto.PayChargeRequest;
-import com.gorani.ecodrive.pay.dto.PayCheckoutRequest;
-import com.gorani.ecodrive.pay.dto.PayCheckoutResponse;
-import com.gorani.ecodrive.pay.dto.PayTransactionResponse;
-import com.gorani.ecodrive.pay.dto.PayWalletResponse;
+import com.gorani.ecodrive.pay.domain.PayChargeAttempt;
+import com.gorani.ecodrive.pay.domain.PayChargeAttemptStatus;
+import com.gorani.ecodrive.pay.dto.*;
 import com.gorani.ecodrive.user.domain.User;
 import com.gorani.ecodrive.user.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -31,9 +31,11 @@ import java.util.UUID;
 public class PayIntegrationService {
 
     private static final DateTimeFormatter TRANSACTION_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy.MM.dd");
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final GoraniPayClient goraniPayClient;
     private final UserService userService;
+    private final PayChargeAttemptService payChargeAttemptService;
 
     public PayWalletResponse getWallet(Long userId) {
         log.info("Pay 지갑 조회 시작. userId={}", userId);
@@ -90,6 +92,17 @@ public class PayIntegrationService {
     }
 
     @Transactional
+    public PayChargePrepareResponse prepareCharge(Long userId, PayChargePrepareRequest request) {
+        log.info("Pay 충전 준비 시작. userId={}, amount={}", userId, request.amount());
+        // 지갑이 없는 사용자는 결제창 진입 전에 차단
+        getWallet(userId);
+        PayChargePrepareResponse response = payChargeAttemptService.prepare(userId, request.amount());
+        log.info("Pay 충전 준비 완료. userId={}, orderId={}, amount={}, expiresAt={}",
+                userId, response.orderId(), response.amount(), response.expiresAt());
+        return response;
+    }
+
+    @Transactional
     public PayWalletResponse charge(Long userId, PayChargeRequest request) {
         log.info("Pay 충전 시작. userId={}, amount={}", userId, request.amount());
         PayWalletResponse wallet = getWallet(userId);
@@ -97,6 +110,54 @@ public class PayIntegrationService {
         log.info("Pay 충전 완료. userId={}, payUserId={}, payAccountId={}, balance={}",
                 userId, charged.payUserId(), charged.id(), charged.balance());
         return toWalletResponse(charged);
+    }
+
+    @Transactional
+    public PayWalletResponse confirmCharge(Long userId, PayChargeConfirmRequest request) {
+        log.info("Pay 토스 충전 승인 시작. userId={}, orderId={}, amount={}", userId, request.orderId(), request.amount());
+        PayChargeAttempt attempt = payChargeAttemptService.requireConfirmable(
+                userId,
+                request.orderId(),
+                request.amount(),
+                request.paymentKey()
+        );
+
+        if (attempt.getStatus() == PayChargeAttemptStatus.CONFIRMED) {
+            log.info("이미 확정된 충전 요청입니다. userId={}, orderId={}", userId, request.orderId());
+            return getWallet(userId);
+        }
+
+        try {
+            PayWalletResponse wallet = getWallet(userId);
+            GoraniPayClient.PayAccountPayload confirmed = goraniPayClient.confirmCharge(
+                    wallet.payUserId(),
+                    request.paymentKey(),
+                    request.orderId(),
+                    request.amount()
+            );
+            payChargeAttemptService.markConfirmed(attempt, request.paymentKey());
+
+            log.info("Pay 토스 충전 승인 완료. userId={}, payUserId={}, payAccountId={}, balance={}",
+                    userId, confirmed.payUserId(), confirmed.id(), confirmed.balance());
+            return toWalletResponse(confirmed);
+        } catch (RestClientResponseException e) {
+            payChargeAttemptService.markFailed(
+                    attempt,
+                    "PAY_CONFIRM_RESPONSE_ERROR",
+                    extractConfirmErrorMessage(e.getResponseBodyAsString())
+            );
+            log.error("Pay 토스 충전 승인 연동 오류(응답). userId={}, statusCode={}, responseBody={}",
+                    userId, e.getStatusCode(), e.getResponseBodyAsString(), e);
+            throw new CustomException(ErrorCode.PAY_INTEGRATION_FAILED);
+        } catch (ResourceAccessException e) {
+            payChargeAttemptService.markFailed(attempt, "PAY_CONFIRM_NETWORK_ERROR", e.getMessage());
+            log.error("Pay 토스 충전 승인 연동 오류(네트워크). userId={}, message={}", userId, e.getMessage(), e);
+            throw new CustomException(ErrorCode.PAY_INTEGRATION_FAILED);
+        } catch (RestClientException e) {
+            payChargeAttemptService.markFailed(attempt, "PAY_CONFIRM_CLIENT_ERROR", e.getMessage());
+            log.error("Pay 토스 충전 승인 연동 오류(클라이언트). userId={}, message={}", userId, e.getMessage(), e);
+            throw new CustomException(ErrorCode.PAY_INTEGRATION_FAILED);
+        }
     }
 
     @Transactional
@@ -230,11 +291,64 @@ public class PayIntegrationService {
         }
 
         return switch (transactionType) {
-            case "CHARGE" -> "잔액 충전";
+            case "CHARGE" -> "지갑 충전";
             case "WITHDRAW" -> "출금";
             case "PAYMENT" -> "결제";
             case "REFUND" -> "환불";
             default -> transactionType;
         };
+    }
+
+    // 승인 실패 시 저장 문자열은 전체 응답이 아닌 message + body.message로 제한
+    private String extractConfirmErrorMessage(String responseBody) {
+        if (!StringUtils.hasText(responseBody)) {
+            return null;
+        }
+
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(responseBody);
+            String message = root.path("message").asText(null);
+            if (!StringUtils.hasText(message)) {
+                return responseBody;
+            }
+
+            int bodyIndex = message.indexOf("body=");
+            if (bodyIndex < 0) {
+                return message;
+            }
+
+            String outerMessage = message.substring(0, bodyIndex).trim();
+            String bodyJson = message.substring(bodyIndex + 5).trim();
+            String innerMessage = extractInnerBodyMessage(bodyJson);
+
+            if (StringUtils.hasText(outerMessage) && StringUtils.hasText(innerMessage)) {
+                return outerMessage + " " + innerMessage;
+            }
+            if (StringUtils.hasText(outerMessage)) {
+                return outerMessage;
+            }
+            if (StringUtils.hasText(innerMessage)) {
+                return innerMessage;
+            }
+            return message;
+        } catch (Exception ex) {
+            log.warn("Pay 승인 실패 응답 파싱 실패. 원문을 저장합니다. responseBody={}", responseBody, ex);
+            return responseBody;
+        }
+    }
+
+    private String extractInnerBodyMessage(String bodyJson) {
+        if (!StringUtils.hasText(bodyJson)) {
+            return null;
+        }
+
+        try {
+            JsonNode bodyNode = OBJECT_MAPPER.readTree(bodyJson);
+            String bodyMessage = bodyNode.path("message").asText(null);
+            return StringUtils.hasText(bodyMessage) ? bodyMessage : null;
+        } catch (Exception ex) {
+            log.warn("Pay 승인 실패 body 파싱 실패. bodyJson={}", bodyJson, ex);
+            return null;
+        }
     }
 }

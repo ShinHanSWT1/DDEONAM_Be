@@ -41,4 +41,4 @@ app:
     target-users: ${DRIVING_DUMMY_TARGET_USERS:1:1}
   pay:
     base-url: https://dev-gorani.lab.terminal-lab.kr/pay
-    internal-token: ${PAY_INTERNAL_TOKEN:}
+    internal-token: ${PAY_INTERNAL_TOKEN}
