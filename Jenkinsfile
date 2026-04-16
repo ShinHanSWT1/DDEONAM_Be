@@ -122,9 +122,8 @@ pipeline {
                                         -e AWS_ACCESS_KEY="$AWS_ACCESS_KEY" \
                                         -e AWS_SECRET_KEY="$AWS_SECRET_KEY" \
                                         -e AWS_BUCKET_NAME=${AWS_BUCKET_NAME} \
-                                        -e PAY_INTERNAL_TOKEN=${INTERNAL_TOKEN} \
+                                        -e PAY_INTERNAL_TOKEN="$INTERNAL_TOKEN" \
                                         ${FULL_IMAGE_TAG}
-
                                     sudo podman image prune -f
 EOF
                             '''
