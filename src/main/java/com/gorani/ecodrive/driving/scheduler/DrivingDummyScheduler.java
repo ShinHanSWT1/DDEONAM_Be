@@ -1,7 +1,6 @@
 package com.gorani.ecodrive.driving.scheduler;
 
 import com.gorani.ecodrive.driving.service.ingestion.DrivingDummyAutomationService;
-import com.gorani.ecodrive.driving.service.ingestion.DrivingDummyRefreshService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,15 +16,8 @@ public class DrivingDummyScheduler {
     private boolean generationEnabled;
 
     private final DrivingDummyAutomationService drivingDummyAutomationService;
-    private final DrivingDummyRefreshService drivingDummyRefreshService;
 
-    @Scheduled(cron = "${app.driving-dummy.refresh-cron:0 0 * * * *}")
-    public void refreshDummyDrivingData() {
-        log.info("주행 더미데이터 스케줄 실행 시작");
-        drivingDummyRefreshService.refreshPendingBatches();
-    }
-
-    @Scheduled(cron = "${app.driving-dummy.generation-cron:0 0 6 * * *}")
+    @Scheduled(cron = "${app.driving-dummy.generation-cron:0 0 * * * *}")
     public void generateAndRefreshDummyDrivingData() {
         if (!generationEnabled) {
             log.info("주행 더미데이터 자동 생성이 비활성화되어 스킵합니다.");

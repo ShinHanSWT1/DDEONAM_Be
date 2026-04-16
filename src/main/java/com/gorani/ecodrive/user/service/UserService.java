@@ -17,6 +17,8 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class UserService {
 
+    private static final long PROFILE_IMAGE_MAX_BYTES = 5L * 1024 * 1024;
+
     private final UserRepository userRepository;
     private final S3Service s3Service;
     private final UserVehicleRepository userVehicleRepository;
@@ -43,6 +45,8 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
+        validateProfileImage(file);
+
         String imageUrl = s3Service.upload(file, "users/profile");
 
         user.updateProfile(
@@ -63,5 +67,11 @@ public class UserService {
         }
 
         user.updateRepresentativeUserVehicleId(userVehicleId);
+    }
+
+    private void validateProfileImage(MultipartFile file) {
+        if (file == null || file.isEmpty() || file.getSize() > PROFILE_IMAGE_MAX_BYTES) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
     }
 }

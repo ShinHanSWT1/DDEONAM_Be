@@ -61,7 +61,6 @@ app:
   cdn-url: https://${AWS_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com
   driving-dummy:
     base-dir: ${DRIVING_DUMMY_BASE_DIR:generated/driving}
-    refresh-cron: ${DRIVING_DUMMY_REFRESH_CRON:0 0 * * * *}
     generation-cron: ${DRIVING_DUMMY_GENERATION_CRON:0 0 * * * *}
     generation-enabled: ${DRIVING_DUMMY_GENERATION_ENABLED:true}
     python-command: ${DRIVING_DUMMY_PYTHON_COMMAND:python3}

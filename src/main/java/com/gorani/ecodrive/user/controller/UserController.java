@@ -8,6 +8,7 @@ import com.gorani.ecodrive.user.service.UserService;
 import com.gorani.ecodrive.vehicle.service.UserVehicleQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -120,14 +121,17 @@ public class UserController {
         );
     }
 
-//    @PostMapping("/{userId}/profile-image")
-//    public ResponseEntity<String> uploadProfileImage(
-//            @PathVariable Long userId,
-//            @RequestPart("file") MultipartFile file
-//    ) {
-//        String imageUrl = userService.uploadProfileImage(userId, file);
-//        return ResponseEntity.ok(imageUrl);
-//    }
+    @PostMapping("/me/profile-image")
+    public ApiResponse<ProfileImageUploadResponse> uploadMyProfileImage(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestPart("file") MultipartFile file
+    ) {
+        String imageUrl = userService.uploadProfileImage(principal.getUserId(), file);
+        return ApiResponse.success(
+                "프로필 이미지 변경 성공",
+                new ProfileImageUploadResponse(imageUrl)
+        );
+    }
 
     public record VehicleResponse(
             Long userVehicleId,
@@ -150,5 +154,8 @@ public class UserController {
     }
 
     public record RepresentativeVehicleResponse(Long userVehicleId) {
+    }
+
+    public record ProfileImageUploadResponse(String profileImageUrl) {
     }
 }
