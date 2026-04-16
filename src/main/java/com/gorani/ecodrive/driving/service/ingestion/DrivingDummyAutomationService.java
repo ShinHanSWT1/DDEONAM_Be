@@ -7,6 +7,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Path;
+import java.util.List;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -40,6 +43,33 @@ public class DrivingDummyAutomationService {
         log.info(
                 "Driving dummy automation completed for a single user. userId={}, generatedBatches={}, attemptedUsers={}, processedBatches={}, insertedSessions={}, insertedEvents={}, updatedUsers={}, failedFiles={}",
                 userId,
+                generation.generatedBatches(),
+                generation.attemptedUsers(),
+                refresh.processedBatches(),
+                refresh.insertedSessions(),
+                refresh.insertedEvents(),
+                refresh.updatedUsers(),
+                refresh.failedFiles()
+        );
+        return new DummyDrivingAutomationResult(generation, refresh);
+    }
+
+    public DummyDrivingAutomationResult generateAndRefreshForUserVehicle(Long userId, Long userVehicleId) {
+        log.info("Driving dummy automation started for a selected vehicle. userId={}, userVehicleId={}, pendingDir={}", userId, userVehicleId, fileManager.getPendingDir());
+        DummyDrivingGenerationResult generation = generationService.generateTodayBatchesForUserVehicle(
+                userId,
+                userVehicleId,
+                fileManager.getPendingDir()
+        );
+        List<Path> generatedFiles = generation.generatedFiles()
+                .stream()
+                .map(Path::of)
+                .toList();
+        DummyDrivingRefreshResult refresh = refreshService.refreshPendingBatches(generatedFiles);
+        log.info(
+                "Driving dummy automation completed for selected vehicle. userId={}, userVehicleId={}, generatedBatches={}, attemptedUsers={}, processedBatches={}, insertedSessions={}, insertedEvents={}, updatedUsers={}, failedFiles={}",
+                userId,
+                userVehicleId,
                 generation.generatedBatches(),
                 generation.attemptedUsers(),
                 refresh.processedBatches(),

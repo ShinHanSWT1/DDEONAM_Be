@@ -34,23 +34,26 @@ public class DrivingQueryController {
 
     @GetMapping("/scores/latest")
     public ApiResponse<DrivingLatestScoreResponse> getLatestScore(
-            @AuthenticationPrincipal CustomUserPrincipal principal
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam(required = false) Long userVehicleId
     ) {
         return ApiResponse.success(
                 "최신 운전점수 조회 성공",
-                drivingQueryService.getLatestScore(principal.getUserId())
+                drivingQueryService.getLatestScore(principal.getUserId(), userVehicleId)
         );
     }
 
     @GetMapping("/sessions/recent")
     public ApiResponse<List<DrivingRecentSessionResponse>> getRecentSessions(
             @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam(required = false) Long userVehicleId,
             @RequestParam(defaultValue = "5") int limit
     ) {
         return ApiResponse.success(
                 "최근 주행 세션 조회 성공",
                 drivingQueryService.getRecentSessions(
                         principal.getUserId(),
+                        userVehicleId,
                         Math.max(1, Math.min(limit, MAX_RECENT_SESSION_LIMIT))
                 )
         );
@@ -58,81 +61,89 @@ public class DrivingQueryController {
 
     @GetMapping("/carbon/latest")
     public ApiResponse<DrivingLatestCarbonResponse> getLatestCarbon(
-            @AuthenticationPrincipal CustomUserPrincipal principal
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam(required = false) Long userVehicleId
     ) {
         return ApiResponse.success(
                 "최신 탄소 절감량 조회 성공",
-                drivingQueryService.getLatestCarbon(principal.getUserId())
+                drivingQueryService.getLatestCarbon(principal.getUserId(), userVehicleId)
         );
     }
 
     @GetMapping("/daily-summary")
     public ApiResponse<DrivingDailySummaryResponse> getDailySummary(
             @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam(required = false) Long userVehicleId,
             @RequestParam LocalDate date
     ) {
         return ApiResponse.success(
                 "일자별 주행 요약 조회 성공",
-                drivingQueryService.getDailySummary(principal.getUserId(), date)
+                drivingQueryService.getDailySummary(principal.getUserId(), userVehicleId, date)
         );
     }
 
     @GetMapping("/behavior-summary")
     public ApiResponse<DrivingBehaviorSummaryResponse> getBehaviorSummary(
             @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam(required = false) Long userVehicleId,
             @RequestParam LocalDate date
     ) {
         return ApiResponse.success(
                 "일자별 주행 행동 요약 조회 성공",
-                drivingQueryService.getBehaviorSummary(principal.getUserId(), date)
+                drivingQueryService.getBehaviorSummary(principal.getUserId(), userVehicleId, date)
         );
     }
 
     @GetMapping("/weekly-summaries")
     public ApiResponse<List<DrivingWeeklySummaryResponse>> getWeeklySummaries(
             @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam(required = false) Long userVehicleId,
             @RequestParam int year,
             @RequestParam int month
     ) {
         return ApiResponse.success(
                 "주차별 주행 요약 조회 성공",
-                drivingQueryService.getWeeklySummaries(principal.getUserId(), year, month)
+                drivingQueryService.getWeeklySummaries(principal.getUserId(), userVehicleId, year, month)
         );
     }
 
     @GetMapping("/monthly-summary")
     public ApiResponse<DrivingMonthlySummaryResponse> getMonthlySummary(
             @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam(required = false) Long userVehicleId,
             @RequestParam int year,
             @RequestParam int month
     ) {
         return ApiResponse.success(
                 "월별 주행 요약 조회 성공",
-                drivingQueryService.getMonthlySummary(principal.getUserId(), year, month)
+                drivingQueryService.getMonthlySummary(principal.getUserId(), userVehicleId, year, month)
         );
     }
 
     @GetMapping("/scores/trend")
     public ApiResponse<List<DrivingScoreTrendResponse>> getScoreTrend(
             @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam(required = false) Long userVehicleId,
             @RequestParam int year,
             @RequestParam int month
     ) {
         return ApiResponse.success(
                 "점수 추이 조회 성공",
-                drivingQueryService.getScoreTrend(principal.getUserId(), year, month)
+                drivingQueryService.getScoreTrend(principal.getUserId(), userVehicleId, year, month)
         );
     }
 
     @GetMapping("/scores/history")
     public ApiResponse<List<DrivingScoreHistoryResponse>> getScoreHistory(
             @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam(required = false) Long userVehicleId,
             @RequestParam(defaultValue = "10") int limit
     ) {
         return ApiResponse.success(
                 "점수 변화 이력 조회 성공",
                 drivingQueryService.getScoreHistory(
                         principal.getUserId(),
+                        userVehicleId,
                         Math.max(1, Math.min(limit, MAX_SCORE_HISTORY_LIMIT))
                 )
         );

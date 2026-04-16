@@ -1,5 +1,7 @@
 package com.gorani.ecodrive.driving.controller;
 
+import com.gorani.ecodrive.common.exception.CustomException;
+import com.gorani.ecodrive.common.exception.ErrorCode;
 import com.gorani.ecodrive.common.response.ApiResponse;
 import com.gorani.ecodrive.common.security.CustomUserPrincipal;
 import com.gorani.ecodrive.driving.dto.ingestion.DummyDrivingAutomationResult;
@@ -9,6 +11,7 @@ import com.gorani.ecodrive.driving.service.ingestion.DrivingDummyRefreshService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,11 +27,19 @@ public class DrivingDummyRefreshController {
 
     @PostMapping("/generate-and-refresh-dummy-data")
     public ApiResponse<DummyDrivingAutomationResult> generateAndRefreshDummyDrivingData(
-            @AuthenticationPrincipal CustomUserPrincipal principal
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestBody(required = false) GenerateDummyDrivingRequest request
     ) {
+        if (request == null || request.userVehicleId() == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
         log.info("Driving dummy generate+refresh requested. userId={}", principal.getUserId());
         DummyDrivingAutomationResult result =
-                drivingDummyAutomationService.generateAndRefreshForUser(principal.getUserId());
+                drivingDummyAutomationService.generateAndRefreshForUserVehicle(
+                principal.getUserId(),
+                request.userVehicleId()
+        );
         log.info(
                 "Driving dummy generate+refresh completed. userId={}, generatedBatches={}, attemptedUsers={}, processedBatches={}, insertedSessions={}, insertedEvents={}, updatedUsers={}, failedFiles={}",
                 principal.getUserId(),
@@ -64,5 +75,8 @@ public class DrivingDummyRefreshController {
                 "Driving dummy data refresh completed",
                 result
         );
+    }
+
+    public record GenerateDummyDrivingRequest(Long userVehicleId) {
     }
 }

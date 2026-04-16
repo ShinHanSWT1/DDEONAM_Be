@@ -43,14 +43,14 @@ public class DrivingAggregationService {
         Set<UserDateKey> datesToRefresh = expandAffectedDates(affectedUserDates);
         int updatedUsers = 0;
         for (UserDateKey key : datesToRefresh) {
-            AggregatedDrivingMetrics metrics = loadMetrics(key.userId(), key.sessionDate());
+            AggregatedDrivingMetrics metrics = loadMetrics(key.userId(), key.userVehicleId(), key.sessionDate());
             if (metrics == null) {
                 continue;
             }
 
-            upsertSafetySnapshot(key.userId(), key.sessionDate(), metrics.safetyScore());
-            upsertCarbonSnapshot(key.userId(), key.sessionDate(), metrics.carbonReductionKg(), metrics.rewardPoint());
-            upsertScoreChangeLog(key.userId(), key.sessionDate(), metrics.safetyScore());
+            upsertSafetySnapshot(key.userId(), key.userVehicleId(), key.sessionDate(), metrics.safetyScore());
+            upsertCarbonSnapshot(key.userId(), key.userVehicleId(), key.sessionDate(), metrics.carbonReductionKg(), metrics.rewardPoint());
+            upsertScoreChangeLog(key.userId(), key.userVehicleId(), key.sessionDate(), metrics.safetyScore());
             updatedUsers++;
         }
         return updatedUsers;
@@ -67,12 +67,14 @@ public class DrivingAggregationService {
                             select distinct session_date
                             from driving_sessions
                             where user_id = ?
+                              and user_vehicle_id = ?
                               and session_date between ? and ?
                               and session_date >= ?
                             order by session_date asc
                             """,
                     (rs, rowNum) -> rs.getObject("session_date", LocalDate.class),
                     key.userId(),
+                    key.userVehicleId(),
                     monthStart,
                     monthEnd,
                     key.sessionDate()
@@ -84,23 +86,23 @@ public class DrivingAggregationService {
             }
 
             for (LocalDate impactedDate : impactedDates) {
-                expanded.add(new UserDateKey(key.userId(), impactedDate));
+                expanded.add(new UserDateKey(key.userId(), key.userVehicleId(), impactedDate));
             }
         }
         return expanded;
     }
 
-    private AggregatedDrivingMetrics loadMetrics(Long userId, LocalDate sessionDate) {
+    private AggregatedDrivingMetrics loadMetrics(Long userId, Long userVehicleId, LocalDate sessionDate) {
         LocalDate monthStart = sessionDate.withDayOfMonth(1);
         SessionMetrics sessionMetrics = jdbcTemplate.query("""
                         select
                             count(*) as session_count,
                             coalesce(sum(distance_km), 0) as total_distance_km,
                             coalesce(sum(driving_time_minutes), 0) as total_driving_time_minutes,
-                            coalesce(sum(idling_time_minutes), 0) as total_idling_time_minutes,
-                            max(user_vehicle_id) as user_vehicle_id
+                            coalesce(sum(idling_time_minutes), 0) as total_idling_time_minutes
                         from driving_sessions
                         where user_id = ?
+                          and user_vehicle_id = ?
                           and session_date between ? and ?
                         """,
                 rs -> rs.next()
@@ -108,16 +110,16 @@ public class DrivingAggregationService {
                         rs.getInt("session_count"),
                         rs.getBigDecimal("total_distance_km"),
                         rs.getInt("total_driving_time_minutes"),
-                        rs.getInt("total_idling_time_minutes"),
-                        rs.getLong("user_vehicle_id")
+                        rs.getInt("total_idling_time_minutes")
                         )
                         : null,
                 userId,
+                userVehicleId,
                 monthStart,
                 sessionDate
         );
 
-        if (sessionMetrics == null || sessionMetrics.userVehicleId() == 0L) {
+        if (sessionMetrics == null || sessionMetrics.sessionCount() == 0) {
             return null;
         }
 
@@ -129,6 +131,7 @@ public class DrivingAggregationService {
                         from driving_events e
                         join driving_sessions s on e.driving_session_id = s.id
                         where e.user_id = ?
+                          and s.user_vehicle_id = ?
                           and s.session_date between ? and ?
                         """,
                 rs -> rs.next()
@@ -139,11 +142,12 @@ public class DrivingAggregationService {
                 )
                         : new EventMetrics(0, 0, 0),
                 userId,
+                userVehicleId,
                 monthStart,
                 sessionDate
         );
 
-        VehicleProfile vehicleProfile = loadVehicleProfile(sessionMetrics.userVehicleId());
+        VehicleProfile vehicleProfile = loadVehicleProfile(userVehicleId);
 
         int sessionCount = Math.max(sessionMetrics.sessionCount(), 1);
         double rapidAccelPerSession = (double) eventMetrics.rapidAccelCount() / sessionCount;
@@ -291,23 +295,24 @@ public class DrivingAggregationService {
         return false;
     }
 
-    private void upsertSafetySnapshot(Long userId, LocalDate sessionDate, int safetyScore) {
+    private void upsertSafetySnapshot(Long userId, Long userVehicleId, LocalDate sessionDate, int safetyScore) {
         Long snapshotId = jdbcTemplate.query("""
                         select id
                         from driving_score_snapshots
-                        where user_id = ? and snapshot_date = ?
+                        where user_vehicle_id = ? and snapshot_date = ?
                         """,
                 rs -> rs.next() ? rs.getLong("id") : null,
-                userId,
+                userVehicleId,
                 sessionDate
         );
 
         if (snapshotId == null) {
             jdbcTemplate.update("""
-                            insert into driving_score_snapshots (user_id, snapshot_date, score, created_at)
-                            values (?, ?, ?, ?)
+                            insert into driving_score_snapshots (user_id, user_vehicle_id, snapshot_date, score, created_at)
+                            values (?, ?, ?, ?, ?)
                             """,
                     userId,
+                    userVehicleId,
                     Date.valueOf(sessionDate),
                     safetyScore,
                     Timestamp.valueOf(LocalDateTime.now())
@@ -325,14 +330,14 @@ public class DrivingAggregationService {
         );
     }
 
-    private void upsertCarbonSnapshot(Long userId, LocalDate sessionDate, BigDecimal carbonReductionKg, int rewardPoint) {
+    private void upsertCarbonSnapshot(Long userId, Long userVehicleId, LocalDate sessionDate, BigDecimal carbonReductionKg, int rewardPoint) {
         Long snapshotId = jdbcTemplate.query("""
                         select id
                         from carbon_reduction_snapshots
-                        where user_id = ? and snapshot_date = ?
+                        where user_vehicle_id = ? and snapshot_date = ?
                         """,
                 rs -> rs.next() ? rs.getLong("id") : null,
-                userId,
+                userVehicleId,
                 sessionDate
         );
 
@@ -340,13 +345,15 @@ public class DrivingAggregationService {
             jdbcTemplate.update("""
                             insert into carbon_reduction_snapshots (
                                 user_id,
+                                user_vehicle_id,
                                 snapshot_date,
                                 carbon_reduction_kg,
                                 reward_point,
                                 created_at
-                            ) values (?, ?, ?, ?, ?)
+                            ) values (?, ?, ?, ?, ?, ?)
                             """,
                     userId,
+                    userVehicleId,
                     Date.valueOf(sessionDate),
                     carbonReductionKg,
                     rewardPoint,
@@ -366,14 +373,14 @@ public class DrivingAggregationService {
         );
     }
 
-    private void upsertScoreChangeLog(Long userId, LocalDate sessionDate, int safetyScore) {
+    private void upsertScoreChangeLog(Long userId, Long userVehicleId, LocalDate sessionDate, int safetyScore) {
         Long snapshotId = jdbcTemplate.query("""
                         select id
                         from driving_score_snapshots
-                        where user_id = ? and snapshot_date = ?
+                        where user_vehicle_id = ? and snapshot_date = ?
                         """,
                 rs -> rs.next() ? rs.getLong("id") : null,
-                userId,
+                userVehicleId,
                 sessionDate
         );
 
@@ -384,13 +391,13 @@ public class DrivingAggregationService {
         Integer previousScore = jdbcTemplate.query("""
                         select score
                         from driving_score_snapshots
-                        where user_id = ? and snapshot_date < ?
+                        where user_vehicle_id = ? and snapshot_date < ?
                           and date_trunc('month', snapshot_date) = date_trunc('month', ?::date)
                         order by snapshot_date desc
                         limit 1
                         """,
                 rs -> rs.next() ? rs.getInt("score") : null,
-                userId,
+                userVehicleId,
                 sessionDate,
                 Date.valueOf(sessionDate)
         );
@@ -435,8 +442,7 @@ public class DrivingAggregationService {
             int sessionCount,
             BigDecimal totalDistanceKm,
             int totalDrivingTimeMinutes,
-            int totalIdlingTimeMinutes,
-            long userVehicleId
+            int totalIdlingTimeMinutes
     ) {
     }
 

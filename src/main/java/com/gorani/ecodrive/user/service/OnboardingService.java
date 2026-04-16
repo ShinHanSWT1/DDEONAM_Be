@@ -30,12 +30,20 @@ public class OnboardingService {
         Long vehicleModelId = validateRequiredId(request.vehicleModelId());
 
         User user = getUser(userId);
+        LocalDateTime now = LocalDateTime.now();
 
         Long userVehicleId = vehicleOnboardingService.registerVehicle(
                 user.getId(),
                 vehicleModelId,
                 vehicleNumber,
-                LocalDateTime.now()
+                now
+        );
+        user.updateRepresentativeUserVehicleId(userVehicleId);
+        drivingSnapshotInitializationService.initializeDefaults(
+                user.getId(),
+                userVehicleId,
+                now.toLocalDate(),
+                now
         );
 
         boolean isOnboardingCompleted = refreshOnboardingCompleted(user);
@@ -100,14 +108,6 @@ public class OnboardingService {
     private boolean refreshOnboardingCompleted(User user) {
         boolean isOnboardingCompleted = userService.calculateOnboardingCompleted(user.getId());
         user.updateOnboardingCompleted(isOnboardingCompleted);
-        if (isOnboardingCompleted) {
-            LocalDateTime now = LocalDateTime.now();
-            drivingSnapshotInitializationService.initializeDefaults(
-                    user.getId(),
-                    now.toLocalDate(),
-                    now
-            );
-        }
         return isOnboardingCompleted;
     }
 

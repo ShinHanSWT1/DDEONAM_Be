@@ -5,9 +5,11 @@ import com.gorani.ecodrive.common.exception.ErrorCode;
 import com.gorani.ecodrive.insurance.domain.InsuranceContract;
 import com.gorani.ecodrive.insurance.domain.InsuranceContractStatus;
 import com.gorani.ecodrive.insurance.domain.UserInsurance;
+import com.gorani.ecodrive.insurance.domain.UserInsuranceStatus;
 import com.gorani.ecodrive.insurance.repository.UserInsuranceRepository;
 import com.gorani.ecodrive.user.domain.User;
 import com.gorani.ecodrive.user.repository.UserRepository;
+import com.gorani.ecodrive.vehicle.repository.UserVehicleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,7 @@ public class UserInsuranceService {
     private final UserInsuranceRepository userInsuranceRepository;
     private final UserRepository userRepository;
     private final InsuranceContractService insuranceContractService;
+    private final UserVehicleRepository userVehicleRepository;
 
     public List<UserInsurance> getMyInsurances(Long userId) {
         return userInsuranceRepository.findAllByUser_Id(userId);
@@ -38,6 +41,10 @@ public class UserInsuranceService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
+        if (!userVehicleRepository.existsByIdAndUser_Id(userVehicleId, userId)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
         InsuranceContract contract = insuranceContractService.getContract(contractId, userId);
 
         InsuranceContractStatus status = contract.getStatus();
@@ -49,6 +56,14 @@ public class UserInsuranceService {
             throw new CustomException(ErrorCode.INVALID_CONTRACT_STATUS);
         }
 
+        userInsuranceRepository
+                .findFirstByUser_IdAndUserVehicleIdAndStatusOrderByCreatedAtDesc(
+                        userId,
+                        userVehicleId,
+                        UserInsuranceStatus.ACTIVE
+                )
+                .ifPresent(currentInsurance -> currentInsurance.deactivate(LocalDateTime.now()));
+
         contract.activate();
 
         UserInsurance userInsurance = UserInsurance.builder()
@@ -57,6 +72,8 @@ public class UserInsuranceService {
                 .insuranceCompany(contract.getInsuranceProduct().getInsuranceCompany())
                 .insuranceProduct(contract.getInsuranceProduct())
                 .insuranceContract(contract)
+                .status(UserInsuranceStatus.ACTIVE)
+                .endedAt(null)
                 .createdAt(LocalDateTime.now())
                 .build();
 
