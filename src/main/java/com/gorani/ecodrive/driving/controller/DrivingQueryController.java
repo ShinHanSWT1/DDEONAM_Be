@@ -82,6 +82,19 @@ public class DrivingQueryController {
         );
     }
 
+    @GetMapping("/daily-summaries")
+    public ApiResponse<List<DrivingDailySummaryResponse>> getDailySummaries(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam(required = false) Long userVehicleId,
+            @RequestParam int year,
+            @RequestParam int month
+    ) {
+        return ApiResponse.success(
+                "월간 일자별 주행 요약 조회 성공",
+                drivingQueryService.getDailySummaries(principal.getUserId(), userVehicleId, year, month)
+        );
+    }
+
     @GetMapping("/behavior-summary")
     public ApiResponse<DrivingBehaviorSummaryResponse> getBehaviorSummary(
             @AuthenticationPrincipal CustomUserPrincipal principal,

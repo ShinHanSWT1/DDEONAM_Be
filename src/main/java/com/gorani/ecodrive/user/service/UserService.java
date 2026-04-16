@@ -30,7 +30,7 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public boolean calculateOnboardingCompleted(Long userId) {
-        boolean hasVehicle = userVehicleRepository.existsByUserId(userId);
+        boolean hasVehicle = userVehicleRepository.existsByUserIdAndStatus(userId, "ACTIVE");
         boolean hasLinkedInsurance = userInsuranceRepository.existsByUser_IdAndStatus(
                 userId,
                 UserInsuranceStatus.ACTIVE
@@ -58,7 +58,7 @@ public class UserService {
     public void updateRepresentativeVehicle(Long userId, Long userVehicleId) {
         User user = getById(userId);
 
-        if (!userVehicleRepository.existsByIdAndUser_Id(userVehicleId, userId)) {
+        if (!userVehicleRepository.existsByIdAndUser_IdAndStatus(userVehicleId, userId, "ACTIVE")) {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
 

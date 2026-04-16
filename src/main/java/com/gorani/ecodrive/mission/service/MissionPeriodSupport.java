@@ -21,6 +21,11 @@ final class MissionPeriodSupport {
         if (missionType == MissionType.DAILY) {
             return new MissionPeriod(baseDate, baseDate);
         }
+        if (missionType == MissionType.MONTHLY) {
+            LocalDate start = baseDate.withDayOfMonth(1);
+            LocalDate end = baseDate.withDayOfMonth(baseDate.lengthOfMonth());
+            return new MissionPeriod(start, end);
+        }
         LocalDate start = baseDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         LocalDate end = start.plusDays(6);
         return new MissionPeriod(start, end);

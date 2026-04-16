@@ -1,5 +1,6 @@
 package com.gorani.ecodrive.mission.service;
 
+import com.gorani.ecodrive.common.constants.TimeZoneConstants;
 import com.gorani.ecodrive.driving.service.ingestion.DrivingIngestionService.UserDateKey;
 import com.gorani.ecodrive.mission.domain.MissionTargetType;
 import com.gorani.ecodrive.mission.domain.MissionType;
@@ -35,7 +36,7 @@ public class MissionProgressUpdateService {
             return 0;
         }
 
-        // 주행 반영으로 영향받은 날짜를 일/주 미션 기간 키로 확장
+        // 주행 반영으로 영향받은 날짜를 일/주/월 미션 기간 키로 확장
         Set<PeriodKey> periodKeys = resolvePeriodKeys(affectedUserDates);
         int updatedMissionCount = 0;
 
@@ -64,6 +65,8 @@ public class MissionProgressUpdateService {
                         mission.getTargetValueSnapshot()
                 );
                 boolean achieved = isAchieved(
+                        mission.getMissionTypeSnapshot(),
+                        mission.getPeriodEndDate(),
                         mission.getTargetTypeSnapshot(),
                         currentValue,
                         mission.getTargetValueSnapshot()
@@ -97,6 +100,15 @@ public class MissionProgressUpdateService {
                     MissionType.WEEKLY,
                     weeklyPeriod.startDate(),
                     weeklyPeriod.endDate()
+            ));
+
+            // MONTHLY는 해당 월(1일~말일) 전체 구간으로 계산
+            MissionPeriodSupport.MissionPeriod monthlyPeriod = MissionPeriodSupport.resolvePeriod(MissionType.MONTHLY, date);
+            keys.add(new PeriodKey(
+                    key.userId(),
+                    MissionType.MONTHLY,
+                    monthlyPeriod.startDate(),
+                    monthlyPeriod.endDate()
             ));
         }
         return keys;
@@ -213,10 +225,25 @@ public class MissionProgressUpdateService {
         };
     }
 
-    private boolean isAchieved(MissionTargetType targetType, BigDecimal currentValue, BigDecimal targetValue) {
+    private boolean isAchieved(
+            MissionType missionType,
+            LocalDate periodEndDate,
+            MissionTargetType targetType,
+            BigDecimal currentValue,
+            BigDecimal targetValue
+    ) {
         if (targetValue == null) {
             return false;
         }
+
+        // 안전점수 유지형(주간/월간)은 기간 종료일에만 완료 확정한다.
+        if (targetType == MissionTargetType.SAFE_SCORE_GTE && missionType != MissionType.DAILY) {
+            LocalDate today = LocalDate.now(TimeZoneConstants.KST);
+            if (today.isBefore(periodEndDate)) {
+                return false;
+            }
+        }
+
         return isGteTarget(targetType)
                 ? currentValue.compareTo(targetValue) >= 0
                 : currentValue.compareTo(targetValue) <= 0;

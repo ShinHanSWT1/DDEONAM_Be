@@ -51,4 +51,19 @@ public class MissionAssignmentScheduler {
                     }
                 });
     }
+
+    /**
+     * 월간 미션 배치 실행 메서드
+     */
+    @Scheduled(cron = "0 15 0 1 * *", zone = TimeZoneConstants.ASIA_SEOUL)
+    public void assignMonthlyMissions() {
+        userRepository.findAllUserIds()
+                .forEach(userId -> {
+                    try {
+                        missionAssignmentService.ensureAssigned(userId, MissionType.MONTHLY);
+                    } catch (Exception e) {
+                        log.error("월간 미션 할당 실패 - userId={}", userId, e);
+                    }
+                });
+    }
 }

@@ -39,6 +39,13 @@ public class MissionService {
     }
 
     /**
+     * 월간 미션 조회 메서드
+     */
+    public List<MissionView> getMonthlyMissions(Long userId) {
+        return getMissions(userId, MissionType.MONTHLY);
+    }
+
+    /**
      * 조회 시 미할당 미션 보정 후 목록 반환 메서드
      */
     private List<MissionView> getMissions(Long userId, MissionType missionType) {

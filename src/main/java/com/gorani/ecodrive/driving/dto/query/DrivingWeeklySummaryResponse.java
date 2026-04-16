@@ -12,6 +12,7 @@ public record DrivingWeeklySummaryResponse(
         LocalDate endDate,
         Integer dayCount,
         Integer sessionCount,
+        BigDecimal totalDistanceKm,
         BigDecimal averageDistanceKm,
         BigDecimal averageIdlingTimeMinutes,
         BigDecimal averageSpeed,

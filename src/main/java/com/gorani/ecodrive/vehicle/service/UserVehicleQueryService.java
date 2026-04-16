@@ -30,6 +30,7 @@ public class UserVehicleQueryService {
                 from user_vehicles uv
                 join vehicle_models vm on vm.id = uv.vehicle_model_id
                 where uv.user_id = ?
+                  and uv.status = 'ACTIVE'
                 order by uv.registered_at desc, uv.id desc
                 """,
                 (rs, rowNum) -> new UserVehicleSummary(

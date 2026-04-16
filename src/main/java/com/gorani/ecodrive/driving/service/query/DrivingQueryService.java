@@ -1,14 +1,6 @@
 package com.gorani.ecodrive.driving.service.query;
 
-import com.gorani.ecodrive.driving.dto.query.DrivingBehaviorSummaryResponse;
-import com.gorani.ecodrive.driving.dto.query.DrivingDailySummaryResponse;
-import com.gorani.ecodrive.driving.dto.query.DrivingLatestCarbonResponse;
-import com.gorani.ecodrive.driving.dto.query.DrivingLatestScoreResponse;
-import com.gorani.ecodrive.driving.dto.query.DrivingMonthlySummaryResponse;
-import com.gorani.ecodrive.driving.dto.query.DrivingRecentSessionResponse;
-import com.gorani.ecodrive.driving.dto.query.DrivingScoreHistoryResponse;
-import com.gorani.ecodrive.driving.dto.query.DrivingScoreTrendResponse;
-import com.gorani.ecodrive.driving.dto.query.DrivingWeeklySummaryResponse;
+import com.gorani.ecodrive.driving.dto.query.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -116,6 +108,77 @@ public class DrivingQueryService {
         return getDailySummary(userId, null, date);
     }
 
+    public List<DrivingDailySummaryResponse> getDailySummaries(Long userId, int year, int month) {
+        return getDailySummaries(userId, null, year, month);
+    }
+
+    public List<DrivingDailySummaryResponse> getDailySummaries(Long userId, Long userVehicleId, int year, int month) {
+        return jdbcTemplate.query("""
+                with session_metrics as (
+                    select
+                        s.session_date,
+                        count(*) as session_count,
+                        coalesce(sum(s.distance_km), 0) as total_distance_km,
+                        coalesce(sum(s.driving_time_minutes), 0) as total_driving_time_minutes,
+                        coalesce(sum(s.idling_time_minutes), 0) as total_idling_time_minutes,
+                        coalesce(avg(s.average_speed), 0) as average_speed,
+                        coalesce(max(s.max_speed), 0) as max_speed,
+                        min(s.started_at) as first_started_at,
+                        max(s.ended_at) as last_ended_at
+                    from driving_sessions s
+                    where s.user_id = ?
+                """.concat(optionalVehicleFilter("s.user_vehicle_id")).concat("""
+                              and extract(year from s.session_date) = ?
+                              and extract(month from s.session_date) = ?
+                            group by s.session_date
+                        ),
+                        event_metrics as (
+                            select
+                                s.session_date,
+                                coalesce(sum(case when e.event_type = 'RAPID_ACCEL' then 1 else 0 end), 0) as rapid_accel_count,
+                                coalesce(sum(case when e.event_type = 'HARD_BRAKE' then 1 else 0 end), 0) as hard_brake_count,
+                                coalesce(sum(case when e.event_type = 'OVERSPEED' then 1 else 0 end), 0) as overspeed_count
+                            from driving_sessions s
+                            left join driving_events e on e.driving_session_id = s.id
+                            where s.user_id = ?
+                        """).concat(optionalVehicleFilter("s.user_vehicle_id")).concat("""
+                              and extract(year from s.session_date) = ?
+                              and extract(month from s.session_date) = ?
+                            group by s.session_date
+                        )
+                        select
+                            sm.session_date,
+                            sm.session_count,
+                            sm.total_distance_km,
+                            sm.total_driving_time_minutes,
+                            sm.total_idling_time_minutes,
+                            sm.average_speed,
+                            sm.max_speed,
+                            coalesce(em.rapid_accel_count, 0) as rapid_accel_count,
+                            coalesce(em.hard_brake_count, 0) as hard_brake_count,
+                            coalesce(em.overspeed_count, 0) as overspeed_count,
+                            sm.first_started_at,
+                            sm.last_ended_at
+                        from session_metrics sm
+                        left join event_metrics em on em.session_date = sm.session_date
+                        order by sm.session_date asc
+                        """),
+                dailySummaryRowMapper(),
+                userId,
+                userVehicleId,
+                userVehicleId,
+                year,
+                month,
+                userId,
+                userVehicleId,
+                userVehicleId,
+                year,
+                month
+
+
+        );
+    }
+
     public DrivingDailySummaryResponse getDailySummary(Long userId, Long userVehicleId, LocalDate date) {
         return jdbcTemplate.query("""
                         select
@@ -188,7 +251,7 @@ public class DrivingQueryService {
                         with daily_metrics as (
                             select
                                 s.session_date,
-                                ((extract(day from s.session_date)::int - 1) / 7) + 1 as week_of_month,
+                                date_trunc('week', s.session_date::timestamp)::date as week_start_date,
                                 count(*) as session_count,
                                 coalesce(sum(s.distance_km), 0) as total_distance_km,
                                 coalesce(sum(s.idling_time_minutes), 0) as total_idling_time_minutes,
@@ -199,23 +262,48 @@ public class DrivingQueryService {
                         """.concat(optionalVehicleFilter("s.user_vehicle_id")).concat("""
                               and extract(year from s.session_date) = ?
                               and extract(month from s.session_date) = ?
-                            group by s.session_date
+                            group by s.session_date,
+                                     date_trunc('week', s.session_date::timestamp)::date
+                        ),
+                        weekly_metrics as (
+                            select
+                                ? as year,
+                                ? as month,
+                                week_start_date as start_date,
+                                (week_start_date + interval '6 day')::date as end_date,
+                                (
+                                    (
+                                        extract(day from week_start_date)::int
+                                        + extract(isodow from date_trunc('month', week_start_date)::date)::int
+                                        - 2
+                                    ) / 7
+                                ) + 1 as week_of_month,
+                                count(*) as day_count,
+                                coalesce(sum(session_count), 0) as session_count,
+                                coalesce(sum(total_distance_km), 0) as total_distance_km,
+                                coalesce(avg(total_distance_km), 0) as average_distance_km,
+                                coalesce(avg(total_idling_time_minutes), 0) as average_idling_time_minutes,
+                                coalesce(avg(average_speed), 0) as average_speed,
+                                coalesce(max(max_speed), 0) as max_speed,
+                                week_start_date
+                            from daily_metrics
+                            group by week_start_date
                         )
                         select
-                            ? as year,
-                            ? as month,
                             week_of_month,
-                            min(session_date) as start_date,
-                            max(session_date) as end_date,
-                            count(*) as day_count,
-                            coalesce(sum(session_count), 0) as session_count,
-                            coalesce(avg(total_distance_km), 0) as average_distance_km,
-                            coalesce(avg(total_idling_time_minutes), 0) as average_idling_time_minutes,
-                            coalesce(avg(average_speed), 0) as average_speed,
-                            coalesce(max(max_speed), 0) as max_speed
-                        from daily_metrics
-                        group by week_of_month
-                        order by week_of_month
+                            year,
+                            month,
+                            start_date,
+                            end_date,
+                            day_count,
+                            session_count,
+                            total_distance_km,
+                            average_distance_km,
+                            average_idling_time_minutes,
+                            average_speed,
+                            max_speed
+                        from weekly_metrics
+                        order by week_start_date
                         """),
                 weeklySummaryRowMapper(),
                 userId,
@@ -234,79 +322,79 @@ public class DrivingQueryService {
 
     public DrivingMonthlySummaryResponse getMonthlySummary(Long userId, Long userVehicleId, int year, int month) {
         String sql = """
-                        with session_metrics as (
-                            select
-                                count(*) as session_count,
-                                count(distinct session_date) as day_count,
-                                coalesce(sum(distance_km), 0) as total_distance_km,
-                                coalesce(sum(driving_time_minutes), 0) as total_driving_time_minutes,
-                                coalesce(sum(idling_time_minutes), 0) as total_idling_time_minutes,
-                                coalesce(avg(average_speed), 0) as average_speed,
-                                coalesce(max(max_speed), 0) as max_speed
-                            from driving_sessions
-                            where user_id = ?
-                        """
+                with session_metrics as (
+                    select
+                        count(*) as session_count,
+                        count(distinct session_date) as day_count,
+                        coalesce(sum(distance_km), 0) as total_distance_km,
+                        coalesce(sum(driving_time_minutes), 0) as total_driving_time_minutes,
+                        coalesce(sum(idling_time_minutes), 0) as total_idling_time_minutes,
+                        coalesce(avg(average_speed), 0) as average_speed,
+                        coalesce(max(max_speed), 0) as max_speed
+                    from driving_sessions
+                    where user_id = ?
+                """
                 + optionalVehicleFilter("user_vehicle_id")
                 + """
-                              and extract(year from session_date) = ?
-                              and extract(month from session_date) = ?
-                        ),
-                        event_metrics as (
-                            select
-                                coalesce(sum(case when e.event_type = 'RAPID_ACCEL' then 1 else 0 end), 0) as rapid_accel_count,
-                                coalesce(sum(case when e.event_type = 'HARD_BRAKE' then 1 else 0 end), 0) as hard_brake_count,
-                                coalesce(sum(case when e.event_type = 'OVERSPEED' then 1 else 0 end), 0) as overspeed_count
-                            from driving_events e
-                            join driving_sessions s on e.driving_session_id = s.id
-                            where e.user_id = ?
-                        """
+                      and extract(year from session_date) = ?
+                      and extract(month from session_date) = ?
+                ),
+                event_metrics as (
+                    select
+                        coalesce(sum(case when e.event_type = 'RAPID_ACCEL' then 1 else 0 end), 0) as rapid_accel_count,
+                        coalesce(sum(case when e.event_type = 'HARD_BRAKE' then 1 else 0 end), 0) as hard_brake_count,
+                        coalesce(sum(case when e.event_type = 'OVERSPEED' then 1 else 0 end), 0) as overspeed_count
+                    from driving_events e
+                    join driving_sessions s on e.driving_session_id = s.id
+                    where e.user_id = ?
+                """
                 + optionalVehicleFilter("s.user_vehicle_id")
                 + """
-                              and extract(year from s.session_date) = ?
-                              and extract(month from s.session_date) = ?
-                        ),
-                        latest_carbon as (
-                            select
-                                carbon_reduction_kg,
-                                reward_point
-                            from carbon_reduction_snapshots
-                            where user_id = ?
-                        """
+                      and extract(year from s.session_date) = ?
+                      and extract(month from s.session_date) = ?
+                ),
+                latest_carbon as (
+                    select
+                        carbon_reduction_kg,
+                        reward_point
+                    from carbon_reduction_snapshots
+                    where user_id = ?
+                """
                 + optionalVehicleFilter("user_vehicle_id")
                 + """
-                              and extract(year from snapshot_date) = ?
-                              and extract(month from snapshot_date) = ?
-                            order by snapshot_date desc, id desc
-                            limit 1
-                        ),
-                        carbon_metrics as (
-                            select
-                                coalesce((select carbon_reduction_kg from latest_carbon), 0) as carbon_reduction_kg,
-                                coalesce((select reward_point from latest_carbon), 0) as reward_point
-                        )
-                        select
-                            ? as year,
-                            ? as month,
-                            sm.session_count,
-                            sm.day_count,
-                            sm.total_distance_km,
-                            sm.total_driving_time_minutes,
-                            sm.total_idling_time_minutes,
-                            sm.average_speed,
-                            sm.max_speed,
-                            em.rapid_accel_count,
-                            em.hard_brake_count,
-                            em.overspeed_count,
-                            case
-                                when sm.total_driving_time_minutes = 0 then 0
-                                else round(((sm.total_driving_time_minutes - sm.total_idling_time_minutes)::numeric / sm.total_driving_time_minutes) * 100, 2)
-                            end as steady_driving_ratio,
-                            cm.carbon_reduction_kg,
-                            cm.reward_point
-                        from session_metrics sm
-                        cross join event_metrics em
-                        cross join carbon_metrics cm
-                        """;
+                      and extract(year from snapshot_date) = ?
+                      and extract(month from snapshot_date) = ?
+                    order by snapshot_date desc, id desc
+                    limit 1
+                ),
+                carbon_metrics as (
+                    select
+                        coalesce((select carbon_reduction_kg from latest_carbon), 0) as carbon_reduction_kg,
+                        coalesce((select reward_point from latest_carbon), 0) as reward_point
+                )
+                select
+                    ? as year,
+                    ? as month,
+                    sm.session_count,
+                    sm.day_count,
+                    sm.total_distance_km,
+                    sm.total_driving_time_minutes,
+                    sm.total_idling_time_minutes,
+                    sm.average_speed,
+                    sm.max_speed,
+                    em.rapid_accel_count,
+                    em.hard_brake_count,
+                    em.overspeed_count,
+                    case
+                        when sm.total_driving_time_minutes = 0 then 0
+                        else round(((sm.total_driving_time_minutes - sm.total_idling_time_minutes)::numeric / sm.total_driving_time_minutes) * 100, 2)
+                    end as steady_driving_ratio,
+                    cm.carbon_reduction_kg,
+                    cm.reward_point
+                from session_metrics sm
+                cross join event_metrics em
+                cross join carbon_metrics cm
+                """;
         return jdbcTemplate.query(
                 sql,
                 rs -> rs.next() && rs.getInt("session_count") > 0
@@ -413,6 +501,10 @@ public class DrivingQueryService {
         return new DrivingDailySummaryResponse(date, 0, null, null, null, null, null, null, null, null, null, null);
     }
 
+    private RowMapper<DrivingDailySummaryResponse> dailySummaryRowMapper() {
+        return (rs, rowNum) -> mapDailySummary(rs);
+    }
+
     private DrivingBehaviorSummaryResponse mapBehaviorSummary(ResultSet rs) throws SQLException {
         return new DrivingBehaviorSummaryResponse(
                 rs.getObject("session_date", LocalDate.class),
@@ -496,6 +588,7 @@ public class DrivingQueryService {
                     rs.getObject("end_date", LocalDate.class),
                     rs.getInt("day_count"),
                     rs.getInt("session_count"),
+                    rs.getBigDecimal("total_distance_km"),
                     rs.getBigDecimal("average_distance_km"),
                     rs.getBigDecimal("average_idling_time_minutes"),
                     rs.getBigDecimal("average_speed"),

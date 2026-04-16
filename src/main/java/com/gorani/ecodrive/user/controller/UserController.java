@@ -5,6 +5,7 @@ import com.gorani.ecodrive.common.security.CustomUserPrincipal;
 import com.gorani.ecodrive.user.domain.User;
 import com.gorani.ecodrive.user.service.OnboardingService;
 import com.gorani.ecodrive.user.service.UserService;
+import com.gorani.ecodrive.vehicle.service.UserVehicleCommandService;
 import com.gorani.ecodrive.vehicle.service.UserVehicleQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,6 +22,7 @@ public class UserController {
     private final UserService userService;
     private final OnboardingService onboardingService;
     private final UserVehicleQueryService userVehicleQueryService;
+    private final UserVehicleCommandService userVehicleCommandService;
 
     @GetMapping("/me")
     public ApiResponse<UserMeResponse> getMyInfo(
@@ -97,6 +99,15 @@ public class UserController {
                 "내 차량 등록 성공",
                 onboardingService.registerVehicle(principal.getUserId(), request)
         );
+    }
+
+    @DeleteMapping("/me/vehicles/{userVehicleId}")
+    public ApiResponse<Void> deleteMyVehicle(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @PathVariable Long userVehicleId
+    ) {
+        userVehicleCommandService.deactivateMyVehicle(principal.getUserId(), userVehicleId);
+        return ApiResponse.success("내 차량 삭제 성공", null);
     }
 
     @PostMapping("/me/onboarding/insurances")

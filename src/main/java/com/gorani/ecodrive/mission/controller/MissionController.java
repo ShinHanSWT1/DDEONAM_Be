@@ -42,4 +42,14 @@ public class MissionController {
     ) {
         return ApiResponse.success("성공적으로 처리되었습니다.", missionService.getWeeklyMissions(principal.getUserId()));
     }
+
+    /**
+     * 월간 미션 목록 조회 메서드
+     */
+    @GetMapping("/monthly")
+    public ApiResponse<List<MissionView>> getMonthlyMissions(
+            @AuthenticationPrincipal CustomUserPrincipal principal
+    ) {
+        return ApiResponse.success("성공적으로 처리되었습니다.", missionService.getMonthlyMissions(principal.getUserId()));
+    }
 }
