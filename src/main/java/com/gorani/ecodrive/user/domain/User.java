@@ -43,6 +43,9 @@ public class User extends BaseEntity {
     @Column(name = "age")
     private Integer age;
 
+    @Column(name = "representative_user_vehicle_id")
+    private Long representativeUserVehicleId;
+
     @Builder
     public User(
             OAuthProvider oauthProvider,
@@ -74,5 +77,9 @@ public class User extends BaseEntity {
 
     public void updateAge(Integer age) {
         this.age = age;
+    }
+
+    public void updateRepresentativeUserVehicleId(Long representativeUserVehicleId) {
+        this.representativeUserVehicleId = representativeUserVehicleId;
     }
 }

@@ -16,4 +16,13 @@ public interface UserInsuranceRepository extends JpaRepository<UserInsurance, Lo
     Optional<UserInsurance> findByIdAndUser_Id(Long id, Long userId);
 
     boolean existsByUser_Id(Long userId);
+
+    boolean existsByUser_IdAndStatus(Long userId, com.gorani.ecodrive.insurance.domain.UserInsuranceStatus status);
+
+    @EntityGraph(attributePaths = {"insuranceCompany", "insuranceProduct", "insuranceContract"})
+    Optional<UserInsurance> findFirstByUser_IdAndUserVehicleIdAndStatusOrderByCreatedAtDesc(
+            Long userId,
+            Long userVehicleId,
+            com.gorani.ecodrive.insurance.domain.UserInsuranceStatus status
+    );
 }

@@ -5,9 +5,13 @@ import com.gorani.ecodrive.common.security.CustomUserPrincipal;
 import com.gorani.ecodrive.user.domain.User;
 import com.gorani.ecodrive.user.service.OnboardingService;
 import com.gorani.ecodrive.user.service.UserService;
+import com.gorani.ecodrive.vehicle.service.UserVehicleQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @RequestMapping("/api/users")
 @RestController
@@ -16,6 +20,7 @@ public class UserController {
 
     private final UserService userService;
     private final OnboardingService onboardingService;
+    private final UserVehicleQueryService userVehicleQueryService;
 
     @GetMapping("/me")
     public ApiResponse<UserMeResponse> getMyInfo(
@@ -44,6 +49,43 @@ public class UserController {
             boolean isOnboardingCompleted,
             Integer age
     ) {
+    }
+
+    @GetMapping("/me/vehicles")
+    public ApiResponse<VehicleListResponse> getMyVehicles(
+            @AuthenticationPrincipal CustomUserPrincipal principal
+    ) {
+        User user = userService.getById(principal.getUserId());
+        List<VehicleResponse> vehicles = userVehicleQueryService.getMyVehicles(principal.getUserId())
+                .stream()
+                .map(vehicle -> new VehicleResponse(
+                        vehicle.userVehicleId(),
+                        vehicle.vehicleNumber(),
+                        vehicle.vehicleModelId(),
+                        vehicle.manufacturer(),
+                        vehicle.modelName(),
+                        vehicle.modelYear(),
+                        vehicle.fuelType(),
+                        vehicle.status(),
+                        vehicle.registeredAt(),
+                        vehicle.userVehicleId().equals(user.getRepresentativeUserVehicleId())
+                ))
+                .toList();
+
+        return ApiResponse.success(new VehicleListResponse(vehicles));
+    }
+
+    @PatchMapping("/me/representative-vehicle")
+    public ApiResponse<RepresentativeVehicleResponse> updateRepresentativeVehicle(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestBody RepresentativeVehicleRequest request
+    ) {
+        userService.updateRepresentativeVehicle(principal.getUserId(), request.userVehicleId());
+
+        return ApiResponse.success(
+                "대표 차량 변경 성공",
+                new RepresentativeVehicleResponse(request.userVehicleId())
+        );
     }
 
     @PostMapping("/me/vehicles")
@@ -86,4 +128,27 @@ public class UserController {
 //        String imageUrl = userService.uploadProfileImage(userId, file);
 //        return ResponseEntity.ok(imageUrl);
 //    }
+
+    public record VehicleResponse(
+            Long userVehicleId,
+            String vehicleNumber,
+            Long vehicleModelId,
+            String manufacturer,
+            String modelName,
+            short modelYear,
+            String fuelType,
+            String status,
+            LocalDateTime registeredAt,
+            boolean isRepresentative
+    ) {
+    }
+
+    public record VehicleListResponse(List<VehicleResponse> vehicles) {
+    }
+
+    public record RepresentativeVehicleRequest(Long userVehicleId) {
+    }
+
+    public record RepresentativeVehicleResponse(Long userVehicleId) {
+    }
 }

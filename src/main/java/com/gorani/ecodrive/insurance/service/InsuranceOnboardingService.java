@@ -44,7 +44,7 @@ public class InsuranceOnboardingService {
                 now
         );
         // 실제 주행 점수 스냅샷이 있으면 연결, 없으면 null (주행 기록 없는 신규 사용자)
-        Long drivingScoreSnapshotId = findExistingDrivingScoreSnapshot(userId);
+        Long drivingScoreSnapshotId = findExistingDrivingScoreSnapshot(userId, userVehicleId);
         
         // 여기서 planType을 정확히 전달해야 합니다.
         Long insuranceContractId = insertInsuranceContract(
@@ -75,42 +75,43 @@ public class InsuranceOnboardingService {
     }
 
     private Long resolveUserVehicleId(Long userId, Long requestedUserVehicleId) {
-        if (requestedUserVehicleId != null) {
-            Long existing = jdbcTemplate.query(
-                    """
-                    select id
-                    from user_vehicles
-                    where id = ?
-                      and user_id = ?
-                    limit 1
-                    """,
-                    rs -> rs.next() ? rs.getLong("id") : null,
-                    requestedUserVehicleId,
-                    userId
-            );
-
-            if (existing != null) {
-                return existing;
-            }
-        }
-
-        Long latestUserVehicleId = jdbcTemplate.query(
-                """
-                select id
-                from user_vehicles
-                where user_id = ?
-                order by id desc
-                limit 1
-                """,
-                rs -> rs.next() ? rs.getLong("id") : null,
-                userId
-        );
-
-        if (latestUserVehicleId == null) {
+        if (requestedUserVehicleId == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        return latestUserVehicleId;
+        Long existing = jdbcTemplate.query(
+                """
+                select id
+                from user_vehicles
+                where id = ?
+                  and user_id = ?
+                for update
+                limit 1
+                """,
+                rs -> rs.next() ? rs.getLong("id") : null,
+                requestedUserVehicleId,
+                userId
+        );
+
+        if (existing == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        jdbcTemplate.update(
+                """
+                update user_insurances
+                set status = 'INACTIVE',
+                    ended_at = ?
+                where user_id = ?
+                  and user_vehicle_id = ?
+                  and status = 'ACTIVE'
+                """,
+                Timestamp.valueOf(LocalDateTime.now()),
+                userId,
+                requestedUserVehicleId
+        );
+
+        return existing;
     }
 
     private Long findOrCreateInsuranceCompany(String insuranceCompanyName, LocalDateTime now) {
@@ -196,17 +197,19 @@ public class InsuranceOnboardingService {
     }
 
     // 실제 주행 점수 스냅샷이 있으면 반환, 없으면 null (더미 데이터 생성 안 함)
-    private Long findExistingDrivingScoreSnapshot(Long userId) {
+    private Long findExistingDrivingScoreSnapshot(Long userId, Long userVehicleId) {
         return jdbcTemplate.query(
                 """
                 select id
                 from driving_score_snapshots
                 where user_id = ?
+                  and user_vehicle_id = ?
                 order by snapshot_date desc, id desc
                 limit 1
                 """,
                 rs -> rs.next() ? rs.getLong("id") : null,
-                userId
+                userId,
+                userVehicleId
         );
     }
 
@@ -261,8 +264,8 @@ public class InsuranceOnboardingService {
         return insertAndReturnId(
                 """
                 insert into user_insurances
-                (user_id, user_vehicle_id, insurance_company_id, insurance_product_id, insurance_contracts_id, created_at)
-                values (?, ?, ?, ?, ?, ?)
+                (user_id, user_vehicle_id, insurance_company_id, insurance_product_id, insurance_contracts_id, status, created_at)
+                values (?, ?, ?, ?, ?, ?, ?)
                 """,
                 ps -> {
                     ps.setLong(1, userId);
@@ -270,7 +273,8 @@ public class InsuranceOnboardingService {
                     ps.setLong(3, insuranceCompanyId);
                     ps.setLong(4, insuranceProductId);
                     ps.setLong(5, insuranceContractId);
-                    ps.setTimestamp(6, Timestamp.valueOf(now));
+                    ps.setString(6, "ACTIVE");
+                    ps.setTimestamp(7, Timestamp.valueOf(now));
                 }
         );
     }
