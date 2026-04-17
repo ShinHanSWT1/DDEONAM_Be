@@ -61,6 +61,9 @@ public class OnboardingService {
         String insuranceCompanyName = validateRequiredText(request.insuranceCompanyName());
         validatePositive(request.annualPremium());
         validatePositive(request.age());
+        if (request.age() < 20) {
+            throw new CustomException(ErrorCode.INVALID_AGE_FOR_INSURANCE);
+        }
         validateRequiredId(request.userVehicleId());
         if (request.insuranceStartedAt() == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);

@@ -1,9 +1,12 @@
 package com.gorani.ecodrive.insurance.controller;
 
 import com.gorani.ecodrive.common.response.ApiResponse;
+import com.gorani.ecodrive.common.security.CustomUserPrincipal;
 import com.gorani.ecodrive.insurance.domain.InsuranceProduct;
+import com.gorani.ecodrive.insurance.service.InsuranceContractService;
 import com.gorani.ecodrive.insurance.service.InsuranceProductService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -16,6 +19,7 @@ import java.util.List;
 public class InsuranceProductController {
 
     private final InsuranceProductService insuranceProductService;
+    private final InsuranceContractService insuranceContractService;
 
     @GetMapping("/products")
     public ApiResponse<?> getProducts(
@@ -48,6 +52,17 @@ public class InsuranceProductController {
                 product.getStatus().name(),
                 product.getCreatedAt()
         ));
+    }
+
+    @GetMapping("/products/{productId}/premium-estimate")
+    public ApiResponse<?> estimatePremium(
+            @PathVariable Long productId,
+            @RequestParam String planType,
+            @AuthenticationPrincipal CustomUserPrincipal principal
+    ) {
+        InsuranceContractService.PremiumEstimate estimate =
+                insuranceContractService.estimatePremium(principal.getUserId(), productId, planType);
+        return ApiResponse.success(estimate);
     }
 
     @GetMapping("/products/{productId}/discount-policies")

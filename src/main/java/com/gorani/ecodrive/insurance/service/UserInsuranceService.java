@@ -45,6 +45,15 @@ public class UserInsuranceService {
             throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
+        // 해당 차량에 이미 ACTIVE 보험이 있으면 먼저 해지해야 함
+        boolean hasActiveInsurance = userInsuranceRepository
+                .findFirstByUser_IdAndUserVehicleIdAndStatusOrderByCreatedAtDesc(
+                        userId, userVehicleId, UserInsuranceStatus.ACTIVE)
+                .isPresent();
+        if (hasActiveInsurance) {
+            throw new CustomException(ErrorCode.VEHICLE_ALREADY_HAS_ACTIVE_INSURANCE);
+        }
+
         InsuranceContract contract = insuranceContractService.getContract(contractId, userId);
 
         InsuranceContractStatus status = contract.getStatus();
@@ -55,14 +64,6 @@ public class UserInsuranceService {
         } else if (status != InsuranceContractStatus.PENDING) {
             throw new CustomException(ErrorCode.INVALID_CONTRACT_STATUS);
         }
-
-        userInsuranceRepository
-                .findFirstByUser_IdAndUserVehicleIdAndStatusOrderByCreatedAtDesc(
-                        userId,
-                        userVehicleId,
-                        UserInsuranceStatus.ACTIVE
-                )
-                .ifPresent(currentInsurance -> currentInsurance.deactivate(LocalDateTime.now()));
 
         contract.activate();
 

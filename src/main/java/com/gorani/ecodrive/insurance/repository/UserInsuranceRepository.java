@@ -25,4 +25,11 @@ public interface UserInsuranceRepository extends JpaRepository<UserInsurance, Lo
             Long userVehicleId,
             com.gorani.ecodrive.insurance.domain.UserInsuranceStatus status
     );
+
+    @EntityGraph(attributePaths = {"insuranceCompany", "insuranceProduct", "insuranceContract"})
+    Optional<UserInsurance> findFirstByUser_IdAndInsuranceContract_IdAndStatus(
+            Long userId,
+            Long insuranceContractId,
+            com.gorani.ecodrive.insurance.domain.UserInsuranceStatus status
+    );
 }

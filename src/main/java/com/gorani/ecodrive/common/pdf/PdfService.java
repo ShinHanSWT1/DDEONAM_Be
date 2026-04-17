@@ -25,7 +25,9 @@ public class PdfService {
             InsuranceContract contract,
             List<InsuranceCoverage> coverages,
             String signatureImageBase64,
-            String contractorName
+            String contractorName,
+            double ageFactor,
+            double experienceFactor
     ) throws Exception {
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -92,14 +94,29 @@ public class PdfService {
         String productName = contract.getInsuranceProduct().getProductName();
         String planType    = contract.getPlanType() != null ? contract.getPlanType().name() : "-";
 
+        int adjustedBase = contract.getFinalAmount() + contract.getDiscountAmount();
+        int ageAdjustAmount = (int) Math.round(contract.getBaseAmount() * (ageFactor - 1));
+        int expAdjustAmount = (int) Math.round(contract.getBaseAmount() * ageFactor * (experienceFactor - 1));
+
         addTableRow(productTable, "보험사", companyName, labelFont, valueFont);
         addTableRow(productTable, "상품명", productName, labelFont, valueFont);
         addTableRow(productTable, "플랜",
                 planType.equals("BASIC") ? "기본형" : planType.equals("STANDARD") ? "표준형" : "프리미엄형",
                 labelFont, valueFont);
-        addTableRow(productTable, "기본보험료", String.format("%,d원", contract.getBaseAmount()), labelFont, valueFont);
-        addTableRow(productTable, "안전점수 할인", String.format("-%,d원", contract.getDiscountAmount()), labelFont, valueFont);
-        addTableRow(productTable, "최종보험료", String.format("%,d원", contract.getFinalAmount()), labelFont, valueFont);
+        addTableRow(productTable, "기본 보험료", String.format("%,d원", contract.getBaseAmount()), labelFont, valueFont);
+        addTableRow(productTable, String.format("나이 보정 (×%.2f)", ageFactor),
+                String.format("%s%,d원", ageAdjustAmount >= 0 ? "+" : "", ageAdjustAmount),
+                labelFont, valueFont);
+        addTableRow(productTable, String.format("운전경력 보정 (×%.3f)", experienceFactor),
+                String.format("%s%,d원", expAdjustAmount >= 0 ? "+" : "", expAdjustAmount),
+                labelFont, valueFont);
+        addTableRow(productTable, "보정 후 금액", String.format("%,d원", adjustedBase), labelFont, valueFont);
+        addTableRow(productTable, "안전점수 할인",
+                contract.getDiscountAmount() > 0
+                        ? String.format("-%,d원", contract.getDiscountAmount())
+                        : "해당 없음",
+                labelFont, valueFont);
+        addTableRow(productTable, "최종 보험료", String.format("%,d원", contract.getFinalAmount()), labelFont, valueFont);
         document.add(productTable);
 
         // ── 선택 특약 ────────────────────────────────

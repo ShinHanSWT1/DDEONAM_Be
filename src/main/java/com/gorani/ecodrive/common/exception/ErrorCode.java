@@ -35,24 +35,20 @@ public enum ErrorCode {
     CONTRACT_ALREADY_ACTIVE(HttpStatus.BAD_REQUEST, "INSURANCE_009", "이미 활성 상태인 계약입니다."),
     INVALID_CONTRACT_STATUS(HttpStatus.BAD_REQUEST, "INSURANCE_010", "계약 상태가 유효하지 않습니다."),
     INSURANCE_CONTRACT_NOT_FOUND(HttpStatus.NOT_FOUND, "INSURANCE_011", "보험 계약을 찾을 수 없습니다."),
+    VEHICLE_ALREADY_HAS_ACTIVE_INSURANCE(HttpStatus.CONFLICT, "INSURANCE_012", "해당 차량에 이미 가입된 보험이 있습니다. 기존 보험 해지 후 계약 가능합니다."),
+    INVALID_AGE_FOR_INSURANCE(HttpStatus.BAD_REQUEST, "INSURANCE_013", "20세 미만은 보험 가입이 제한됩니다."),
 
     // PAY
-<<<<<<< HEAD
-    PAY_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "PAY_001", "Pay 계좌를 찾을 수 없습니다"),
-    PAY_INTEGRATION_FAILED(HttpStatus.BAD_GATEWAY, "PAY_002", "Pay 연동에 실패했습니다."),
-
-    // NOTIFICATION
-    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTIFICATION_001", "알림을 찾을 수 없습니다."),
-    NOTIFICATION_FORBIDDEN(HttpStatus.FORBIDDEN, "NOTIFICATION_002", "해당 알림에 접근 권한이 없습니다.");
-
-=======
     PAY_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "PAY_001", "Pay 계좌를 찾을 수 없습니다."),
     PAY_INTEGRATION_FAILED(HttpStatus.BAD_GATEWAY, "PAY_002", "Pay 연동에 실패했습니다."),
     PAY_CHARGE_ATTEMPT_NOT_FOUND(HttpStatus.NOT_FOUND, "PAY_003", "충전 시도 정보를 찾을 수 없습니다."),
     PAY_CHARGE_ATTEMPT_EXPIRED(HttpStatus.BAD_REQUEST, "PAY_004", "충전 시도가 만료되었습니다."),
     PAY_CHARGE_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "PAY_005", "충전 금액 정보가 일치하지 않습니다."),
-    PAY_CHARGE_DUPLICATED_CONFIRM(HttpStatus.CONFLICT, "PAY_006", "이미 처리된 충전 승인 요청입니다.");
->>>>>>> b371d8ab2f80ba049581c4770dcd300146ac4369
+    PAY_CHARGE_DUPLICATED_CONFIRM(HttpStatus.CONFLICT, "PAY_006", "이미 처리된 충전 승인 요청입니다."),
+
+    // NOTIFICATION
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTIFICATION_001", "알림을 찾을 수 없습니다."),
+    NOTIFICATION_FORBIDDEN(HttpStatus.FORBIDDEN, "NOTIFICATION_002", "해당 알림에 접근 권한이 없습니다.");
 
     private final HttpStatus status;
     private final String code;
