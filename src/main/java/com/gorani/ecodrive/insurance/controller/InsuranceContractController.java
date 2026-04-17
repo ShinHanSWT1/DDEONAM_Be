@@ -126,7 +126,9 @@ public class InsuranceContractController {
             @NotBlank String address,
             @NotNull @Min(1) Integer contractPeriod,
             @NotBlank String planType,
-            @NotEmpty List<Long> selectedCoverageIds
+            @NotEmpty List<Long> selectedCoverageIds,
+            String signatureImage,
+            String email
     ) {}
 
 }

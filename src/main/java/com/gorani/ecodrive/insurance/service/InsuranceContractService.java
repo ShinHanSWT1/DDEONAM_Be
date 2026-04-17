@@ -1,16 +1,20 @@
 package com.gorani.ecodrive.insurance.service;
 
+import com.gorani.ecodrive.common.email.EmailService;
 import com.gorani.ecodrive.common.exception.CustomException;
 import com.gorani.ecodrive.common.exception.ErrorCode;
+import com.gorani.ecodrive.common.pdf.PdfService;
 import com.gorani.ecodrive.driving.service.query.DrivingQueryService;
 import com.gorani.ecodrive.insurance.controller.InsuranceContractController.CreateContractRequest;
 import com.gorani.ecodrive.insurance.domain.*;
 import com.gorani.ecodrive.insurance.repository.InsuranceCoverageRepository;
 import com.gorani.ecodrive.insurance.repository.InsuranceContractRepository;
 import com.gorani.ecodrive.insurance.repository.InsuranceProductRepository;
+import com.gorani.ecodrive.insurance.repository.UserInsuranceRepository;
 import com.gorani.ecodrive.user.domain.User;
 import com.gorani.ecodrive.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -30,6 +35,9 @@ public class InsuranceContractService {
     private final DiscountCalculationService discountCalculationService;
     private final UserRepository userRepository;
     private final DrivingQueryService drivingQueryService;
+    private final PdfService pdfService;
+    private final EmailService emailService;
+    private final UserInsuranceRepository userInsuranceRepository;
 
     @Transactional
     public InsuranceContract createContract(Long userId, CreateContractRequest request) {
@@ -62,18 +70,23 @@ public class InsuranceContractService {
             throw new CustomException(ErrorCode.REQUIRED_COVERAGE_MISSING);
         }
 
-        // 6. 보험료 계산 (상품 base_amount × 나이보정 × 경력보정 × 안전점수 할인)
+        // 6. 보험료 계산 (상품 base_amount × 플랜배율 × 나이보정 × 경력보정 × 안전점수 할인)
         int age = user.getAge() != null ? user.getAge() : 30;
         int score = java.util.Optional.ofNullable(drivingQueryService.getLatestScore(userId).score()).orElse(0);
         int experienceYears = insuranceContractRepository.findFirstByUser_IdOrderByStartedAtAsc(userId)
-                .map(c -> c.getStartedAt() != null ? (int) ChronoUnit.YEARS.between(c.getStartedAt(), LocalDateTime.now()) : 100)
+                .filter(c -> c.getStartedAt() != null)
+                .map(c -> (int) ChronoUnit.YEARS.between(c.getStartedAt(), LocalDateTime.now()))
                 .orElse(0);
-        int baseAmount = product.getBaseAmount();
-        int finalAmount = discountCalculationService.calculateFinalPremium(baseAmount, age, score, experienceYears);
-        int adjustedBase = (int) (baseAmount * discountCalculationService.calculateAgeFactor(age)
-                * discountCalculationService.calculateExperienceFactor(experienceYears));
-        int discountAmount = adjustedBase - finalAmount;
-        double discountRate = discountCalculationService.calculateScoreDiscountRate(age, score);
+        int rawBaseAmount = product.getBaseAmount();
+        double planFactor = discountCalculationService.calculatePlanFactor(planType);
+        int planAdjustedBase = (int) (rawBaseAmount * planFactor);
+        int annualMileageKm = drivingQueryService.getAnnualDistanceKm(userId);
+        double ageFactor = discountCalculationService.calculateAgeFactor(age);
+        double experienceFactor = discountCalculationService.calculateExperienceFactor(experienceYears);
+        int adjustedBase = (int) (planAdjustedBase * ageFactor * experienceFactor);
+        double discountRate = discountCalculationService.calculateScoreDiscountRate(age, score, annualMileageKm);
+        int finalAmount = (int) (adjustedBase * (1 - discountRate));
+        int discountAmount = Math.max(0, adjustedBase - finalAmount);
 
         // 7. 계약 생성
         InsuranceContract contract = InsuranceContract.builder()
@@ -85,13 +98,40 @@ public class InsuranceContractService {
                 .planType(planType)
                 .status(InsuranceContractStatus.PENDING)
                 .createdAt(LocalDateTime.now())
-                .baseAmount(baseAmount)
+                .baseAmount(planAdjustedBase)
                 .discountAmount(discountAmount)
                 .discountRate(BigDecimal.valueOf(discountRate))
                 .finalAmount(finalAmount)
                 .build();
 
-        return insuranceContractRepository.save(contract);
+        InsuranceContract saved = insuranceContractRepository.save(contract);
+
+        // 8. 선택된 특약 조회
+        List<InsuranceCoverage> selectedCoverages = insuranceCoverageRepository
+                .findAllById(request.selectedCoverageIds());
+
+        // 9. PDF 생성 + 이메일 발송 (실패해도 계약은 유지)
+        String email = request.email() != null && !request.email().isBlank()
+                ? request.email()
+                : user.getEmail();
+
+        if (email != null && !email.isBlank()) {
+            try {
+                byte[] pdfBytes = pdfService.createContractPdf(
+                        saved,
+                        selectedCoverages,
+                        request.signatureImage(),
+                        user.getNickname(),
+                        ageFactor,
+                        experienceFactor
+                );
+                emailService.sendContractEmail(email, user.getNickname(), pdfBytes);
+            } catch (Exception e) {
+                log.error("PDF 생성 또는 이메일 발송 실패 (계약은 정상 처리됨): {}", e.getMessage(), e);
+            }
+        }
+
+        return saved;
     }
 
     public InsuranceContract getContract(Long contractId, Long userId) {
@@ -119,6 +159,55 @@ public class InsuranceContractService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public PremiumEstimate estimatePremium(Long userId, Long productId, String planTypeStr) {
+        InsuranceProduct product = insuranceProductRepository.findById(productId)
+                .orElseThrow(() -> new CustomException(ErrorCode.INSURANCE_PRODUCT_NOT_FOUND));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        InsurancePlanType planType = parsePlanType(planTypeStr);
+        int age = user.getAge() != null ? user.getAge() : 30;
+        int score = java.util.Optional.ofNullable(drivingQueryService.getLatestScore(userId).score()).orElse(0);
+        int experienceYears = insuranceContractRepository.findFirstByUser_IdOrderByStartedAtAsc(userId)
+                .filter(c -> c.getStartedAt() != null)
+                .map(c -> (int) ChronoUnit.YEARS.between(c.getStartedAt(), LocalDateTime.now()))
+                .orElse(0);
+        int annualMileageKm = drivingQueryService.getAnnualDistanceKm(userId);
+
+        int rawBase = product.getBaseAmount();
+        double planFactor = discountCalculationService.calculatePlanFactor(planType);
+        int planAdjustedBase = (int) (rawBase * planFactor);
+        double ageFactor = discountCalculationService.calculateAgeFactor(age);
+        double experienceFactor = discountCalculationService.calculateExperienceFactor(experienceYears);
+        int adjustedBase = (int) (planAdjustedBase * ageFactor * experienceFactor);
+        double discountRate = discountCalculationService.calculateScoreDiscountRate(age, score, annualMileageKm);
+        int finalAmount = (int) (adjustedBase * (1 - discountRate));
+        int discountAmount = Math.max(0, adjustedBase - finalAmount);
+
+        return new PremiumEstimate(
+                product.getProductName(),
+                planAdjustedBase,
+                ageFactor,
+                experienceFactor,
+                adjustedBase,
+                discountRate,
+                discountAmount,
+                finalAmount
+        );
+    }
+
+    public record PremiumEstimate(
+            String productName,
+            int planAdjustedBase,
+            double ageFactor,
+            double experienceFactor,
+            int adjustedBase,
+            double discountRate,
+            int discountAmount,
+            int finalAmount
+    ) {}
+
     private InsurancePlanType parsePlanType(String raw) {
         try {
             return InsurancePlanType.valueOf(raw.trim().toUpperCase());
@@ -134,5 +223,11 @@ public class InsuranceContractService {
             throw new CustomException(ErrorCode.ALREADY_CANCELLED);
         }
         contract.cancel();
+
+        // 연결된 UserInsurance도 비활성화
+        userInsuranceRepository
+                .findFirstByUser_IdAndInsuranceContract_IdAndStatus(
+                        userId, contractId, UserInsuranceStatus.ACTIVE)
+                .ifPresent(ui -> ui.deactivate(LocalDateTime.now()));
     }
 }
