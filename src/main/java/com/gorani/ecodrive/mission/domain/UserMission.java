@@ -130,4 +130,10 @@ public class UserMission {
             this.status = MissionStatus.COMPLETED;
         }
     }
+
+    public void markRewarded(LocalDateTime rewardedAt) {
+        if (this.rewardedAt == null) {
+            this.rewardedAt = rewardedAt;
+        }
+    }
 }

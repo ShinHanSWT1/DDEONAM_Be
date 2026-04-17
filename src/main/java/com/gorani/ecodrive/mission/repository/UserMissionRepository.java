@@ -1,6 +1,7 @@
 package com.gorani.ecodrive.mission.repository;
 
 import com.gorani.ecodrive.mission.domain.MissionType;
+import com.gorani.ecodrive.mission.domain.MissionStatus;
 import com.gorani.ecodrive.mission.domain.UserMission;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -44,5 +45,18 @@ public interface UserMissionRepository extends JpaRepository<UserMission, Long> 
             @Param("userId") Long userId,
             @Param("missionType") MissionType missionType,
             @Param("periodStartDate") LocalDate periodStartDate
+    );
+
+    @Query("""
+            select um
+            from UserMission um
+            where um.status = :status
+              and um.rewardedAt is null
+              and um.periodEndDate < :baseDate
+            order by um.id asc
+            """)
+    List<UserMission> findRewardTargets(
+            @Param("status") MissionStatus status,
+            @Param("baseDate") LocalDate baseDate
     );
 }

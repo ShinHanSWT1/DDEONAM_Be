@@ -181,27 +181,57 @@ public class DrivingQueryService {
 
     public DrivingDailySummaryResponse getDailySummary(Long userId, Long userVehicleId, LocalDate date) {
         return jdbcTemplate.query("""
-                        select
-                            s.session_date,
-                            count(*) as session_count,
-                            coalesce(sum(s.distance_km), 0) as total_distance_km,
-                            coalesce(sum(s.driving_time_minutes), 0) as total_driving_time_minutes,
-                            coalesce(sum(s.idling_time_minutes), 0) as total_idling_time_minutes,
-                            coalesce(avg(s.average_speed), 0) as average_speed,
-                            coalesce(max(s.max_speed), 0) as max_speed,
-                            min(s.started_at) as first_started_at,
-                            max(s.ended_at) as last_ended_at,
-                            coalesce(sum(case when e.event_type = 'RAPID_ACCEL' then 1 else 0 end), 0) as rapid_accel_count,
-                            coalesce(sum(case when e.event_type = 'HARD_BRAKE' then 1 else 0 end), 0) as hard_brake_count,
-                            coalesce(sum(case when e.event_type = 'OVERSPEED' then 1 else 0 end), 0) as overspeed_count
-                        from driving_sessions s
-                        left join driving_events e on e.driving_session_id = s.id
-                        where s.user_id = ?
+                        with session_metrics as (
+                            select
+                                s.session_date,
+                                count(*) as session_count,
+                                coalesce(sum(s.distance_km), 0) as total_distance_km,
+                                coalesce(sum(s.driving_time_minutes), 0) as total_driving_time_minutes,
+                                coalesce(sum(s.idling_time_minutes), 0) as total_idling_time_minutes,
+                                coalesce(avg(s.average_speed), 0) as average_speed,
+                                coalesce(max(s.max_speed), 0) as max_speed,
+                                min(s.started_at) as first_started_at,
+                                max(s.ended_at) as last_ended_at
+                            from driving_sessions s
+                            where s.user_id = ?
                         """.concat(optionalVehicleFilter("s.user_vehicle_id")).concat("""
-                          and s.session_date = ?
-                        group by s.session_date
+                              and s.session_date = ?
+                            group by s.session_date
+                        ),
+                        event_metrics as (
+                            select
+                                s.session_date,
+                                coalesce(sum(case when e.event_type = 'RAPID_ACCEL' then 1 else 0 end), 0) as rapid_accel_count,
+                                coalesce(sum(case when e.event_type = 'HARD_BRAKE' then 1 else 0 end), 0) as hard_brake_count,
+                                coalesce(sum(case when e.event_type = 'OVERSPEED' then 1 else 0 end), 0) as overspeed_count
+                            from driving_sessions s
+                            left join driving_events e on e.driving_session_id = s.id
+                            where s.user_id = ?
+                        """).concat(optionalVehicleFilter("s.user_vehicle_id")).concat("""
+                              and s.session_date = ?
+                            group by s.session_date
+                        )
+                        select
+                            sm.session_date,
+                            sm.session_count,
+                            sm.total_distance_km,
+                            sm.total_driving_time_minutes,
+                            sm.total_idling_time_minutes,
+                            sm.average_speed,
+                            sm.max_speed,
+                            coalesce(em.rapid_accel_count, 0) as rapid_accel_count,
+                            coalesce(em.hard_brake_count, 0) as hard_brake_count,
+                            coalesce(em.overspeed_count, 0) as overspeed_count,
+                            sm.first_started_at,
+                            sm.last_ended_at
+                        from session_metrics sm
+                        left join event_metrics em on em.session_date = sm.session_date
                         """),
                 rs -> rs.next() ? mapDailySummary(rs) : emptyDailySummary(date),
+                userId,
+                userVehicleId,
+                userVehicleId,
+                date,
                 userId,
                 userVehicleId,
                 userVehicleId,

@@ -8,6 +8,8 @@ import com.gorani.ecodrive.pay.dto.PayChargePrepareResponse;
 import com.gorani.ecodrive.pay.dto.PayChargeRequest;
 import com.gorani.ecodrive.pay.dto.PayCheckoutRequest;
 import com.gorani.ecodrive.pay.dto.PayCheckoutResponse;
+import com.gorani.ecodrive.pay.dto.PayCheckoutSessionRequest;
+import com.gorani.ecodrive.pay.dto.PayCheckoutSessionResponse;
 import com.gorani.ecodrive.pay.dto.PayTransactionResponse;
 import com.gorani.ecodrive.pay.dto.PayWalletResponse;
 import com.gorani.ecodrive.pay.service.PayIntegrationService;
@@ -111,6 +113,19 @@ public class PayIntegrationController {
         return ApiResponse.success(
                 "Pay 결제 성공",
                 payIntegrationService.checkout(principal.getUserId(), request)
+        );
+    }
+
+    @PostMapping("/checkout/session")
+    public ApiResponse<PayCheckoutSessionResponse> createCheckoutSession(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @Valid @RequestBody PayCheckoutSessionRequest request
+    ) {
+        log.info("Pay checkout session API 요청. userId={}, title={}, amount={}",
+                principal.getUserId(), request.title(), request.amount());
+        return ApiResponse.success(
+                "Pay checkout session 생성 성공",
+                payIntegrationService.createCheckoutSession(principal.getUserId(), request)
         );
     }
 }

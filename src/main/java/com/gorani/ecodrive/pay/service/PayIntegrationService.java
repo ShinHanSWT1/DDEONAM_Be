@@ -7,7 +7,16 @@ import com.gorani.ecodrive.common.exception.ErrorCode;
 import com.gorani.ecodrive.pay.client.GoraniPayClient;
 import com.gorani.ecodrive.pay.domain.PayChargeAttempt;
 import com.gorani.ecodrive.pay.domain.PayChargeAttemptStatus;
-import com.gorani.ecodrive.pay.dto.*;
+import com.gorani.ecodrive.pay.dto.PayChargeConfirmRequest;
+import com.gorani.ecodrive.pay.dto.PayChargePrepareRequest;
+import com.gorani.ecodrive.pay.dto.PayChargePrepareResponse;
+import com.gorani.ecodrive.pay.dto.PayChargeRequest;
+import com.gorani.ecodrive.pay.dto.PayCheckoutRequest;
+import com.gorani.ecodrive.pay.dto.PayCheckoutResponse;
+import com.gorani.ecodrive.pay.dto.PayCheckoutSessionRequest;
+import com.gorani.ecodrive.pay.dto.PayCheckoutSessionResponse;
+import com.gorani.ecodrive.pay.dto.PayTransactionResponse;
+import com.gorani.ecodrive.pay.dto.PayWalletResponse;
 import com.gorani.ecodrive.user.domain.User;
 import com.gorani.ecodrive.user.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -203,6 +212,85 @@ public class PayIntegrationService {
         );
     }
 
+    @Transactional
+    public PayCheckoutSessionResponse createCheckoutSession(Long userId, PayCheckoutSessionRequest request) {
+        log.info("Pay checkout session 생성 시작. userId={}, title={}, amount={}, pointAmount={}, couponDiscountAmount={}",
+                userId, request.title(), request.amount(), request.pointAmount(), request.couponDiscountAmount());
+
+        // EcoDrive 사용자 -> Pay 사용자 매핑 및 지갑 유효성 검증
+        PayWalletResponse wallet = getWallet(userId);
+        String externalOrderId = StringUtils.hasText(request.externalOrderId())
+                ? request.externalOrderId()
+                : buildExternalOrderId(userId);
+
+        // 실제 결제는 Pay Hosted Checkout에서 수행하므로 BE는 세션 발급만 위임
+        GoraniPayClient.PayCheckoutSessionPayload payload = goraniPayClient.createCheckoutSession(
+                new GoraniPayClient.CreateCheckoutSessionPayload(
+                        "ECODRIVE",
+                        wallet.payUserId(),
+                        externalOrderId,
+                        request.title(),
+                        request.amount(),
+                        resolveNonNegativeAmount(request.pointAmount()),
+                        resolveNonNegativeAmount(request.couponDiscountAmount()),
+                        request.payProductId(),
+                        request.successUrl(),
+                        request.failUrl(),
+                        request.entryMode(),
+                        request.channel()
+                )
+        );
+
+        log.info("Pay checkout session 생성 완료. userId={}, externalOrderId={}, sessionToken={}, checkoutUrl={}",
+                userId, externalOrderId, payload.sessionToken(), payload.checkoutUrl());
+
+        return new PayCheckoutSessionResponse(
+                payload.sessionToken(),
+                payload.checkoutUrl(),
+                payload.status(),
+                payload.expiresAt()
+        );
+    }
+
+    @Transactional
+    public PayWalletResponse earnRewardPoints(
+            Long userId,
+            Integer amount,
+            String category,
+            String description,
+            String externalOrderId,
+            String idempotencyKey
+    ) {
+        log.info("Pay 리워드 포인트 적립 시작. userId={}, amount={}, category={}, externalOrderId={}",
+                userId, amount, category, externalOrderId);
+        try {
+            PayWalletResponse wallet = getWallet(userId);
+            GoraniPayClient.PayAccountPayload updated = goraniPayClient.earnPoints(
+                    new GoraniPayClient.EarnPointPayload(
+                            wallet.payUserId(),
+                            resolveNonNegativeAmount(amount),
+                            category,
+                            description,
+                            externalOrderId
+                    ),
+                    idempotencyKey
+            );
+            log.info("Pay 리워드 포인트 적립 완료. userId={}, payUserId={}, payAccountId={}, points={}",
+                    userId, updated.payUserId(), updated.id(), updated.points());
+            return toWalletResponse(updated);
+        } catch (RestClientResponseException e) {
+            log.error("Pay 리워드 포인트 적립 연동 오류(응답). userId={}, statusCode={}, responseBody={}",
+                    userId, e.getStatusCode(), e.getResponseBodyAsString(), e);
+            throw new CustomException(ErrorCode.PAY_INTEGRATION_FAILED);
+        } catch (ResourceAccessException e) {
+            log.error("Pay 리워드 포인트 적립 연동 오류(네트워크). userId={}, message={}", userId, e.getMessage(), e);
+            throw new CustomException(ErrorCode.PAY_INTEGRATION_FAILED);
+        } catch (RestClientException e) {
+            log.error("Pay 리워드 포인트 적립 연동 오류(클라이언트). userId={}, message={}", userId, e.getMessage(), e);
+            throw new CustomException(ErrorCode.PAY_INTEGRATION_FAILED);
+        }
+    }
+
     public List<PayTransactionResponse> getTransactions(Long userId) {
         log.info("Pay 거래내역 조회 시작. userId={}", userId);
         PayWalletResponse wallet = getWallet(userId);
@@ -224,6 +312,7 @@ public class PayIntegrationService {
                 account.bankCode(),
                 account.ownerName(),
                 account.balance(),
+                account.points(),
                 account.status()
         );
     }
@@ -268,7 +357,7 @@ public class PayIntegrationService {
         String type = "CREDIT".equalsIgnoreCase(payload.direction()) ? "earn" : "pay";
         String title = resolveTransactionTitle(payload.transactionType());
         String category = StringUtils.hasText(payload.category())
-                ? payload.category()
+                ? resolveTransactionCategory(payload.category())
                 : ("earn".equals(type) ? "충전" : "결제");
         String date = payload.occurredAt() != null
                 ? payload.occurredAt().format(TRANSACTION_DATE_FORMATTER)
@@ -295,11 +384,25 @@ public class PayIntegrationService {
             case "WITHDRAW" -> "출금";
             case "PAYMENT" -> "결제";
             case "REFUND" -> "환불";
+            case "POINT_EARN" -> "포인트 적립";
+            case "POINT_USE" -> "포인트 사용";
             default -> transactionType;
         };
     }
 
-    // 승인 실패 시 저장 문자열은 전체 응답이 아닌 message + body.message로 제한
+    // pay 서비스 분류 코드를 FE 표시용 한글 라벨로 정규화한다.
+    private String resolveTransactionCategory(String category) {
+        return switch (category) {
+            case "COUPON" -> "쿠폰 결제";
+            case "GENERAL" -> "일반 결제";
+            case "POINT" -> "포인트";
+            case "MISSION" -> "미션 보상";
+            case "CARBON" -> "탄소 리워드";
+            default -> category;
+        };
+    }
+
+    // 승인 실패 시 전체 응답 대신 message + body.message만 저장
     private String extractConfirmErrorMessage(String responseBody) {
         if (!StringUtils.hasText(responseBody)) {
             return null;

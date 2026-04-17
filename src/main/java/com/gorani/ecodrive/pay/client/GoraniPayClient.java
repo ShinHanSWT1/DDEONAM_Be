@@ -150,6 +150,36 @@ public class GoraniPayClient {
         return response;
     }
 
+    public PayCheckoutSessionPayload createCheckoutSession(CreateCheckoutSessionPayload request) {
+        log.info("gorani_pay checkout session 생성 호출. merchantCode={}, payUserId={}, amount={}, externalOrderId={}",
+                request.merchantCode(), request.payUserId(), request.amount(), request.externalOrderId());
+        PayCheckoutSessionPayload response = restTemplate.postForObject(
+                "/checkout/sessions",
+                new HttpEntity<>(request, headers()),
+                PayCheckoutSessionPayload.class
+        );
+        if (response == null) {
+            throw new IllegalStateException("gorani_pay create checkout session response is empty");
+        }
+        return response;
+    }
+
+    public PayAccountPayload earnPoints(EarnPointPayload request, String idempotencyKey) {
+        log.info("gorani_pay 포인트 적립 호출. payUserId={}, amount={}, category={}, externalOrderId={}",
+                request.payUserId(), request.amount(), request.category(), request.externalOrderId());
+        HttpHeaders headers = headers();
+        headers.set(IDEMPOTENCY_HEADER, idempotencyKey);
+        PayAccountPayload response = restTemplate.postForObject(
+                "/points/earn",
+                new HttpEntity<>(request, headers),
+                PayAccountPayload.class
+        );
+        if (response == null) {
+            throw new IllegalStateException("gorani_pay point earn response is empty");
+        }
+        return response;
+    }
+
     private HttpHeaders headers() {
         HttpHeaders headers = new HttpHeaders();
         if (StringUtils.hasText(internalToken)) {
@@ -195,6 +225,31 @@ public class GoraniPayClient {
     ) {
     }
 
+    public record CreateCheckoutSessionPayload(
+            String merchantCode,
+            Long payUserId,
+            String externalOrderId,
+            String title,
+            Integer amount,
+            Integer pointAmount,
+            Integer couponDiscountAmount,
+            Long payProductId,
+            String successUrl,
+            String failUrl,
+            String entryMode,
+            String channel
+    ) {
+    }
+
+    public record EarnPointPayload(
+            Long payUserId,
+            Integer amount,
+            String category,
+            String description,
+            String externalOrderId
+    ) {
+    }
+
     public record PayAccountPayload(
             Long id,
             Long payUserId,
@@ -202,6 +257,7 @@ public class GoraniPayClient {
             String bankCode,
             String ownerName,
             Integer balance,
+            Long points,
             String status
     ) {
     }
@@ -230,6 +286,14 @@ public class GoraniPayClient {
             Integer amount,
             String category,
             LocalDateTime occurredAt
+    ) {
+    }
+
+    public record PayCheckoutSessionPayload(
+            String sessionToken,
+            String checkoutUrl,
+            String status,
+            LocalDateTime expiresAt
     ) {
     }
 }

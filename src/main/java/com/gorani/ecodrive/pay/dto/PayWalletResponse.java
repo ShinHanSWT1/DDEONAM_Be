@@ -14,6 +14,8 @@ public record PayWalletResponse(
         String ownerName,
         // 잔액
         Integer balance,
+        // 포인트 잔액
+        Long points,
         // 계좌 상태
         String status
 ) {
