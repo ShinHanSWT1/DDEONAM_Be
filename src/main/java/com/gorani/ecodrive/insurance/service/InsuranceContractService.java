@@ -75,11 +75,12 @@ public class InsuranceContractService {
                 .map(c -> c.getStartedAt() != null ? (int) ChronoUnit.YEARS.between(c.getStartedAt(), LocalDateTime.now()) : 100)
                 .orElse(0);
         int baseAmount = product.getBaseAmount();
-        int finalAmount = discountCalculationService.calculateFinalPremium(baseAmount, age, score, experienceYears);
+        int annualMileageKm = drivingQueryService.getAnnualDistanceKm(userId);
+        int finalAmount = discountCalculationService.calculateFinalPremium(baseAmount, age, score, experienceYears, annualMileageKm);
         int adjustedBase = (int) (baseAmount * discountCalculationService.calculateAgeFactor(age)
                 * discountCalculationService.calculateExperienceFactor(experienceYears));
         int discountAmount = adjustedBase - finalAmount;
-        double discountRate = discountCalculationService.calculateScoreDiscountRate(age, score);
+        double discountRate = discountCalculationService.calculateScoreDiscountRate(age, score, annualMileageKm);
 
         // 7. 계약 생성
         InsuranceContract contract = InsuranceContract.builder()

@@ -22,11 +22,12 @@ public class DiscountPolicyController {
     public ApiResponse<?> calculate(
             @RequestParam @Min(0) @Max(150) int age,
             @RequestParam @Min(0) @Max(100) int score,
-            @RequestParam @Min(0) int experienceYears
+            @RequestParam @Min(0) int experienceYears,
+            @RequestParam @Min(0) int annualMileageKm
     ) {
         double ageFactor = discountCalculationService.calculateAgeFactor(age);
         double experienceFactor = discountCalculationService.calculateExperienceFactor(experienceYears);
-        double scoreDiscountRate = discountCalculationService.calculateScoreDiscountRate(age, score);
+        double scoreDiscountRate = discountCalculationService.calculateScoreDiscountRate(age, score, annualMileageKm);
 
         return ApiResponse.success(new CalculateResponse(
                 ageFactor,

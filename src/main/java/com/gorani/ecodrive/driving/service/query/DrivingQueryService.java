@@ -281,6 +281,19 @@ public class DrivingQueryService {
         );
     }
 
+    public int getAnnualDistanceKm(Long userId) {
+        Integer total = jdbcTemplate.queryForObject("""
+                SELECT COALESCE(SUM(distance_km), 0)
+                FROM driving_sessions
+                WHERE user_id = ?
+                  AND session_date >= CURRENT_DATE - INTERVAL '1 year'
+                """,
+                Integer.class,
+                userId
+        );
+        return total != null ? total.intValue() : 0;
+    }
+
     public List<DrivingScoreHistoryResponse> getScoreHistory(Long userId, int limit) {
         return jdbcTemplate.query("""
                         select id, change_type, message, score_delta, change_date

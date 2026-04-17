@@ -21,19 +21,20 @@ public class DiscountCalculationService {
         return 1.00;                             // 3년 이상 기본
     }
 
-    // 안전운전 점수 + 나이 조합 할인율
-    public double calculateScoreDiscountRate(int age, int score) {
+    // 안전운전 점수 + 나이 + 주행거리 조합 할인율
+    public double calculateScoreDiscountRate(int age, int score, int annualMileageKm) {
+        if (annualMileageKm == 0 || annualMileageKm > 15000) return 0.0;
         if (score >= 95) return age <= 28 ? 0.265 : 0.175;
         if (score >= 91) return age <= 28 ? 0.211 : 0.115;
-        if (score >= 81) return age <= 28 ? 0.149 : 0.045;
-        return 0.0; // 81점 미만 할인 없음
+        if (score >= 80) return age <= 28 ? 0.149 : 0.045;
+        return 0.0; // 80점 미만 할인 없음
     }
 
     // 최종 보험료 계산 (상품 base_amount 기준)
-    public int calculateFinalPremium(int baseAmount, int age, int score, int experienceYears) {
+    public int calculateFinalPremium(int baseAmount, int age, int score, int experienceYears, int annualMileageKm) {
         double afterAge = baseAmount * calculateAgeFactor(age);
         double afterExperience = afterAge * calculateExperienceFactor(experienceYears);
-        double discountRate = calculateScoreDiscountRate(age, score);
+        double discountRate = calculateScoreDiscountRate(age, score, annualMileageKm);
         return (int) (afterExperience * (1 - discountRate));
     }
 }

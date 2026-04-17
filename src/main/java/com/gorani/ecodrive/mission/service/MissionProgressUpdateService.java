@@ -1,12 +1,15 @@
 package com.gorani.ecodrive.mission.service;
 
 import com.gorani.ecodrive.driving.service.ingestion.DrivingIngestionService.UserDateKey;
+import com.gorani.ecodrive.mission.domain.MissionStatus;
 import com.gorani.ecodrive.mission.domain.MissionTargetType;
 import com.gorani.ecodrive.mission.domain.MissionType;
 import com.gorani.ecodrive.mission.domain.UserMission;
 import com.gorani.ecodrive.mission.repository.UserMissionRepository;
+import com.gorani.ecodrive.notification.event.MissionCompletedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +31,7 @@ public class MissionProgressUpdateService {
 
     private final UserMissionRepository userMissionRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public int refreshProgress(List<UserDateKey> affectedUserDates) {
@@ -68,7 +72,16 @@ public class MissionProgressUpdateService {
                         currentValue,
                         mission.getTargetValueSnapshot()
                 );
+                boolean wasInProgress = mission.getStatus() == MissionStatus.IN_PROGRESS;
                 mission.applyProgress(currentValue, progressRate, achieved);
+                if (wasInProgress && mission.getStatus() == MissionStatus.COMPLETED) {
+                    eventPublisher.publishEvent(
+                            new MissionCompletedEvent(
+                                    mission.getUser().getId(),
+                                    mission.getMissionPolicy().getTitle()
+                            )
+                    );
+                }
                 updatedMissionCount++;
             }
         }
