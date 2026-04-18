@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
@@ -23,6 +22,8 @@ public class S3Service {
     private final S3Client s3Client;
     @Value("${cloud.aws.s3.bucket}")
     private String bucket;
+    @Value("${app.cdn-url}")
+    private String cdnUrl;
 
     public String upload(MultipartFile multipartFile, String dirName) {
         validateFile(multipartFile);
@@ -43,9 +44,7 @@ public class S3Service {
                     RequestBody.fromInputStream(multipartFile.getInputStream(), multipartFile.getSize())
             );
 
-            String fileUrl = s3Client.utilities()
-                    .getUrl(builder -> builder.bucket(bucket).key(key))
-                    .toExternalForm();
+            String fileUrl = buildPublicUrl(key);
 
             log.info("S3 업로드 성공. key={}", key);
             return fileUrl;
@@ -83,5 +82,13 @@ public class S3Service {
             throw new IllegalArgumentException("파일 확장자가 없습니다.");
         }
         return originalFilename.substring(pos + 1);
+    }
+
+    private String buildPublicUrl(String key) {
+        String normalizedBaseUrl = cdnUrl.endsWith("/")
+                ? cdnUrl.substring(0, cdnUrl.length() - 1)
+                : cdnUrl;
+
+        return normalizedBaseUrl + "/" + key;
     }
 }
