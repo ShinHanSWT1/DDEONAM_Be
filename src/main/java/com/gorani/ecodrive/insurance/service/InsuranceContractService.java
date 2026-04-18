@@ -6,7 +6,14 @@ import com.gorani.ecodrive.common.exception.ErrorCode;
 import com.gorani.ecodrive.common.pdf.PdfService;
 import com.gorani.ecodrive.driving.service.query.DrivingQueryService;
 import com.gorani.ecodrive.insurance.controller.InsuranceContractController.CreateContractRequest;
-import com.gorani.ecodrive.insurance.domain.*;
+import com.gorani.ecodrive.insurance.domain.InsuranceContract;
+import com.gorani.ecodrive.insurance.domain.InsuranceContractStatus;
+import com.gorani.ecodrive.insurance.domain.InsuranceCoverage;
+import com.gorani.ecodrive.insurance.domain.InsuranceCoverageStatus;
+import com.gorani.ecodrive.insurance.domain.InsurancePlanType;
+import com.gorani.ecodrive.insurance.domain.InsuranceProduct;
+import com.gorani.ecodrive.insurance.domain.InsuranceProductStatus;
+import com.gorani.ecodrive.insurance.domain.UserInsuranceStatus;
 import com.gorani.ecodrive.insurance.repository.InsuranceCoverageRepository;
 import com.gorani.ecodrive.insurance.repository.InsuranceContractRepository;
 import com.gorani.ecodrive.insurance.repository.InsuranceProductRepository;
@@ -22,6 +29,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -41,97 +49,55 @@ public class InsuranceContractService {
 
     @Transactional
     public InsuranceContract createContract(Long userId, CreateContractRequest request) {
-        // 1. User 조회
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        InsuranceContract contract = createContractDraftInternal(userId, request);
+        sendContractDocument(contract, request.selectedCoverageIds(), request.signatureImage(), request.email());
+        return contract;
+    }
 
-        // 2. 상품 조회
-        InsuranceProduct product = insuranceProductRepository.findById(request.insuranceProductId())
-                .orElseThrow(() -> new CustomException(ErrorCode.INSURANCE_PRODUCT_NOT_FOUND));
+    @Transactional
+    public InsuranceContract createContractDraft(Long userId, CreateContractRequest request) {
+        return createContractDraftInternal(userId, request);
+    }
 
-        // 3. 판매 중 확인
-        if (product.getStatus() != InsuranceProductStatus.ON_SALE) {
-            throw new CustomException(ErrorCode.INSURANCE_PRODUCT_NOT_ON_SALE);
-        }
-
-        // 4. planType 파싱
-        InsurancePlanType planType = parsePlanType(request.planType());
-
-        // 5. 필수 특약 확인 (planType 기준으로 검증)
-        List<InsuranceCoverage> requiredCoverages = insuranceCoverageRepository
-                .findAllByInsuranceProduct_IdAndPlanTypeAndStatus(
-                        product.getId(), planType, InsuranceCoverageStatus.ACTIVE)
-                .stream()
-                .filter(InsuranceCoverage::getIsRequired)
-                .toList();
-        boolean allRequiredSelected = requiredCoverages.stream()
-                .allMatch(c -> request.selectedCoverageIds().contains(c.getId()));
-        if (!allRequiredSelected) {
-            throw new CustomException(ErrorCode.REQUIRED_COVERAGE_MISSING);
-        }
-
-        // 6. 보험료 계산 (상품 base_amount × 플랜배율 × 나이보정 × 경력보정 × 안전점수 할인)
-        int age = user.getAge() != null ? user.getAge() : 30;
-        int score = java.util.Optional.ofNullable(drivingQueryService.getLatestScore(userId).score()).orElse(0);
-        int experienceYears = insuranceContractRepository.findFirstByUser_IdOrderByStartedAtAsc(userId)
-                .filter(c -> c.getStartedAt() != null)
-                .map(c -> (int) ChronoUnit.YEARS.between(c.getStartedAt(), LocalDateTime.now()))
-                .orElse(0);
-        int rawBaseAmount = product.getBaseAmount();
-        double planFactor = discountCalculationService.calculatePlanFactor(planType);
-        int planAdjustedBase = (int) (rawBaseAmount * planFactor);
-        int annualMileageKm = drivingQueryService.getAnnualDistanceKm(userId);
-        double ageFactor = discountCalculationService.calculateAgeFactor(age);
-        double experienceFactor = discountCalculationService.calculateExperienceFactor(experienceYears);
-        int adjustedBase = (int) (planAdjustedBase * ageFactor * experienceFactor);
-        double discountRate = discountCalculationService.calculateScoreDiscountRate(age, score, annualMileageKm);
-        int finalAmount = (int) (adjustedBase * (1 - discountRate));
-        int discountAmount = Math.max(0, adjustedBase - finalAmount);
-
-        // 7. 계약 생성
-        InsuranceContract contract = InsuranceContract.builder()
-                .user(user)
-                .insuranceProduct(product)
-                .phoneNumber(request.phoneNumber())
-                .address(request.address())
-                .contractPeriod(request.contractPeriod())
-                .planType(planType)
-                .status(InsuranceContractStatus.PENDING)
-                .createdAt(LocalDateTime.now())
-                .baseAmount(planAdjustedBase)
-                .discountAmount(discountAmount)
-                .discountRate(BigDecimal.valueOf(discountRate))
-                .finalAmount(finalAmount)
-                .build();
-
-        InsuranceContract saved = insuranceContractRepository.save(contract);
-
-        // 8. 선택된 특약 조회
-        List<InsuranceCoverage> selectedCoverages = insuranceCoverageRepository
-                .findAllById(request.selectedCoverageIds());
-
-        // 9. PDF 생성 + 이메일 발송 (실패해도 계약은 유지)
-        String email = request.email() != null && !request.email().isBlank()
-                ? request.email()
+    public void sendContractDocument(
+            InsuranceContract contract,
+            List<Long> selectedCoverageIds,
+            String signatureImage,
+            String requestedEmail
+    ) {
+        User user = contract.getUser();
+        String email = requestedEmail != null && !requestedEmail.isBlank()
+                ? requestedEmail
                 : user.getEmail();
 
-        if (email != null && !email.isBlank()) {
-            try {
-                byte[] pdfBytes = pdfService.createContractPdf(
-                        saved,
-                        selectedCoverages,
-                        request.signatureImage(),
-                        user.getNickname(),
-                        ageFactor,
-                        experienceFactor
-                );
-                emailService.sendContractEmail(email, user.getNickname(), pdfBytes);
-            } catch (Exception e) {
-                log.error("PDF 생성 또는 이메일 발송 실패 (계약은 정상 처리됨): {}", e.getMessage(), e);
-            }
+        if (email == null || email.isBlank()) {
+            return;
         }
 
-        return saved;
+        try {
+            List<InsuranceCoverage> selectedCoverages = insuranceCoverageRepository.findAllById(selectedCoverageIds);
+
+            int age = user.getAge() != null ? user.getAge() : 30;
+            int experienceYears = insuranceContractRepository.findFirstByUser_IdOrderByStartedAtAsc(user.getId())
+                    .filter(c -> c.getStartedAt() != null)
+                    .map(c -> (int) ChronoUnit.YEARS.between(c.getStartedAt(), LocalDateTime.now()))
+                    .orElse(0);
+
+            double ageFactor = discountCalculationService.calculateAgeFactor(age);
+            double experienceFactor = discountCalculationService.calculateExperienceFactor(experienceYears);
+
+            byte[] pdfBytes = pdfService.createContractPdf(
+                    contract,
+                    selectedCoverages,
+                    signatureImage,
+                    user.getNickname(),
+                    ageFactor,
+                    experienceFactor
+            );
+            emailService.sendContractEmail(email, user.getNickname(), pdfBytes);
+        } catch (Exception e) {
+            log.error("PDF 생성 또는 이메일 발송 실패 (계약은 정상 처리). message={}", e.getMessage(), e);
+        }
     }
 
     public InsuranceContract getContract(Long contractId, Long userId) {
@@ -168,7 +134,7 @@ public class InsuranceContractService {
 
         InsurancePlanType planType = parsePlanType(planTypeStr);
         int age = user.getAge() != null ? user.getAge() : 30;
-        int score = java.util.Optional.ofNullable(drivingQueryService.getLatestScore(userId).score()).orElse(0);
+        int score = Optional.ofNullable(drivingQueryService.getLatestScore(userId).score()).orElse(0);
         int experienceYears = insuranceContractRepository.findFirstByUser_IdOrderByStartedAtAsc(userId)
                 .filter(c -> c.getStartedAt() != null)
                 .map(c -> (int) ChronoUnit.YEARS.between(c.getStartedAt(), LocalDateTime.now()))
@@ -224,10 +190,70 @@ public class InsuranceContractService {
         }
         contract.cancel();
 
-        // 연결된 UserInsurance도 비활성화
         userInsuranceRepository
                 .findFirstByUser_IdAndInsuranceContract_IdAndStatus(
                         userId, contractId, UserInsuranceStatus.ACTIVE)
                 .ifPresent(ui -> ui.deactivate(LocalDateTime.now()));
+    }
+
+    private InsuranceContract createContractDraftInternal(Long userId, CreateContractRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        InsuranceProduct product = insuranceProductRepository.findById(request.insuranceProductId())
+                .orElseThrow(() -> new CustomException(ErrorCode.INSURANCE_PRODUCT_NOT_FOUND));
+
+        if (product.getStatus() != InsuranceProductStatus.ON_SALE) {
+            throw new CustomException(ErrorCode.INSURANCE_PRODUCT_NOT_ON_SALE);
+        }
+
+        InsurancePlanType planType = parsePlanType(request.planType());
+
+        List<InsuranceCoverage> requiredCoverages = insuranceCoverageRepository
+                .findAllByInsuranceProduct_IdAndPlanTypeAndStatus(
+                        product.getId(), planType, InsuranceCoverageStatus.ACTIVE)
+                .stream()
+                .filter(InsuranceCoverage::getIsRequired)
+                .toList();
+
+        boolean allRequiredSelected = requiredCoverages.stream()
+                .allMatch(c -> request.selectedCoverageIds().contains(c.getId()));
+        if (!allRequiredSelected) {
+            throw new CustomException(ErrorCode.REQUIRED_COVERAGE_MISSING);
+        }
+
+        int age = user.getAge() != null ? user.getAge() : 30;
+        int score = Optional.ofNullable(drivingQueryService.getLatestScore(userId).score()).orElse(0);
+        int experienceYears = insuranceContractRepository.findFirstByUser_IdOrderByStartedAtAsc(userId)
+                .filter(c -> c.getStartedAt() != null)
+                .map(c -> (int) ChronoUnit.YEARS.between(c.getStartedAt(), LocalDateTime.now()))
+                .orElse(0);
+        int rawBaseAmount = product.getBaseAmount();
+        double planFactor = discountCalculationService.calculatePlanFactor(planType);
+        int planAdjustedBase = (int) (rawBaseAmount * planFactor);
+        int annualMileageKm = drivingQueryService.getAnnualDistanceKm(userId);
+        double ageFactor = discountCalculationService.calculateAgeFactor(age);
+        double experienceFactor = discountCalculationService.calculateExperienceFactor(experienceYears);
+        int adjustedBase = (int) (planAdjustedBase * ageFactor * experienceFactor);
+        double discountRate = discountCalculationService.calculateScoreDiscountRate(age, score, annualMileageKm);
+        int finalAmount = (int) (adjustedBase * (1 - discountRate));
+        int discountAmount = Math.max(0, adjustedBase - finalAmount);
+
+        InsuranceContract contract = InsuranceContract.builder()
+                .user(user)
+                .insuranceProduct(product)
+                .phoneNumber(request.phoneNumber())
+                .address(request.address())
+                .contractPeriod(request.contractPeriod())
+                .planType(planType)
+                .status(InsuranceContractStatus.PENDING)
+                .createdAt(LocalDateTime.now())
+                .baseAmount(planAdjustedBase)
+                .discountAmount(discountAmount)
+                .discountRate(BigDecimal.valueOf(discountRate))
+                .finalAmount(finalAmount)
+                .build();
+
+        return insuranceContractRepository.save(contract);
     }
 }

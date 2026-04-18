@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 @Slf4j
 @RestControllerAdvice
@@ -42,6 +43,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(ErrorCode.INVALID_INPUT_VALUE.getStatus())
                 .body(ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException e) {
+        log.warn("ResponseStatusException handled. status={}, reason={}", e.getStatusCode(), e.getReason(), e);
+        return ResponseEntity
+                .status(e.getStatusCode())
+                .body(new ErrorResponse(false, "COMMON_HTTP_ERROR", e.getReason()));
     }
 
     @ExceptionHandler(Exception.class)
