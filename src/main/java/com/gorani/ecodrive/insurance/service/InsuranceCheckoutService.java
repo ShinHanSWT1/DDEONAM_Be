@@ -58,6 +58,7 @@ public class InsuranceCheckoutService {
                 userId,
                 new CreateContractRequest(
                         request.insuranceProductId(),
+                        request.userVehicleId(),
                         request.phoneNumber(),
                         request.address(),
                         request.contractPeriod(),

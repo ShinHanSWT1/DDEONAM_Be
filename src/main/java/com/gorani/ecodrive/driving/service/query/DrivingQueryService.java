@@ -29,21 +29,18 @@ public class DrivingQueryService {
     }
 
     public DrivingLatestScoreResponse getLatestScore(Long userId, Long userVehicleId) {
-        LocalDate currentMonthStart = LocalDate.now().withDayOfMonth(1);
         return jdbcTemplate.query("""
                         select snapshot_date, score
                         from driving_score_snapshots
                         where user_id = ?
                         """.concat(optionalVehicleFilter("user_vehicle_id")).concat("""
-                          and snapshot_date >= ?
                         order by snapshot_date desc, id desc
                         limit 1
                         """),
                 rs -> rs.next() ? mapLatestScore(rs) : new DrivingLatestScoreResponse(null, null),
                 userId,
                 userVehicleId,
-                userVehicleId,
-                currentMonthStart
+                userVehicleId
         );
     }
 
@@ -83,7 +80,6 @@ public class DrivingQueryService {
     }
 
     public DrivingLatestCarbonResponse getLatestCarbon(Long userId, Long userVehicleId) {
-        LocalDate currentMonthStart = LocalDate.now().withDayOfMonth(1);
         return jdbcTemplate.query("""
                         select
                             snapshot_date,
@@ -92,15 +88,13 @@ public class DrivingQueryService {
                         from carbon_reduction_snapshots
                         where user_id = ?
                         """.concat(optionalVehicleFilter("user_vehicle_id")).concat("""
-                          and snapshot_date >= ?
                         order by snapshot_date desc, id desc
                         limit 1
                         """),
                 rs -> rs.next() ? mapLatestCarbon(rs) : new DrivingLatestCarbonResponse(null, null, null),
                 userId,
                 userVehicleId,
-                userVehicleId,
-                currentMonthStart
+                userVehicleId
         );
     }
 
@@ -474,15 +468,19 @@ public class DrivingQueryService {
     }
 
     public int getAnnualDistanceKm(Long userId) {
-        Integer total = jdbcTemplate.queryForObject("""
+        return getAnnualDistanceKm(userId, null);
+    }
+
+    public int getAnnualDistanceKm(Long userId, Long userVehicleId) {
+        String sql = """
                 SELECT COALESCE(SUM(distance_km), 0)
                 FROM driving_sessions
                 WHERE user_id = ?
                   AND session_date >= CURRENT_DATE - INTERVAL '1 year'
-                """,
-                Integer.class,
-                userId
-        );
+                """.concat(userVehicleId != null ? " AND user_vehicle_id = ?" : "");
+        Integer total = userVehicleId != null
+                ? jdbcTemplate.queryForObject(sql, Integer.class, userId, userVehicleId)
+                : jdbcTemplate.queryForObject(sql, Integer.class, userId);
         return total != null ? total.intValue() : 0;
     }
 

@@ -146,6 +146,17 @@ public class DrivingQueryController {
         );
     }
 
+    @GetMapping("/annual-distance")
+    public ApiResponse<Integer> getAnnualDistance(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam(required = false) Long userVehicleId
+    ) {
+        return ApiResponse.success(
+                "연간 주행거리 조회 성공",
+                drivingQueryService.getAnnualDistanceKm(principal.getUserId(), userVehicleId)
+        );
+    }
+
     @GetMapping("/scores/history")
     public ApiResponse<List<DrivingScoreHistoryResponse>> getScoreHistory(
             @AuthenticationPrincipal CustomUserPrincipal principal,

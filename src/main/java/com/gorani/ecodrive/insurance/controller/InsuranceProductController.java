@@ -58,10 +58,11 @@ public class InsuranceProductController {
     public ApiResponse<?> estimatePremium(
             @PathVariable Long productId,
             @RequestParam String planType,
+            @RequestParam(required = false) Long userVehicleId,
             @AuthenticationPrincipal CustomUserPrincipal principal
     ) {
         InsuranceContractService.PremiumEstimate estimate =
-                insuranceContractService.estimatePremium(principal.getUserId(), productId, planType);
+                insuranceContractService.estimatePremium(principal.getUserId(), userVehicleId, productId, planType);
         return ApiResponse.success(estimate);
     }
 

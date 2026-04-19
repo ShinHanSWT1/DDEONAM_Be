@@ -127,6 +127,10 @@ public class InsuranceContractService {
 
     @Transactional(readOnly = true)
     public PremiumEstimate estimatePremium(Long userId, Long productId, String planTypeStr) {
+        return estimatePremium(userId, null, productId, planTypeStr);
+    }
+
+    public PremiumEstimate estimatePremium(Long userId, Long userVehicleId, Long productId, String planTypeStr) {
         InsuranceProduct product = insuranceProductRepository.findById(productId)
                 .orElseThrow(() -> new CustomException(ErrorCode.INSURANCE_PRODUCT_NOT_FOUND));
         User user = userRepository.findById(userId)
@@ -134,12 +138,12 @@ public class InsuranceContractService {
 
         InsurancePlanType planType = parsePlanType(planTypeStr);
         int age = user.getAge() != null ? user.getAge() : 30;
-        int score = Optional.ofNullable(drivingQueryService.getLatestScore(userId).score()).orElse(0);
+        int score = Optional.ofNullable(drivingQueryService.getLatestScore(userId, userVehicleId).score()).orElse(0);
         int experienceYears = insuranceContractRepository.findFirstByUser_IdOrderByStartedAtAsc(userId)
                 .filter(c -> c.getStartedAt() != null)
                 .map(c -> (int) ChronoUnit.YEARS.between(c.getStartedAt(), LocalDateTime.now()))
                 .orElse(0);
-        int annualMileageKm = drivingQueryService.getAnnualDistanceKm(userId);
+        int annualMileageKm = drivingQueryService.getAnnualDistanceKm(userId, userVehicleId);
 
         int rawBase = product.getBaseAmount();
         double planFactor = discountCalculationService.calculatePlanFactor(planType);
@@ -223,7 +227,7 @@ public class InsuranceContractService {
         }
 
         int age = user.getAge() != null ? user.getAge() : 30;
-        int score = Optional.ofNullable(drivingQueryService.getLatestScore(userId).score()).orElse(0);
+        int score = Optional.ofNullable(drivingQueryService.getLatestScore(userId, request.userVehicleId()).score()).orElse(0);
         int experienceYears = insuranceContractRepository.findFirstByUser_IdOrderByStartedAtAsc(userId)
                 .filter(c -> c.getStartedAt() != null)
                 .map(c -> (int) ChronoUnit.YEARS.between(c.getStartedAt(), LocalDateTime.now()))
@@ -231,7 +235,7 @@ public class InsuranceContractService {
         int rawBaseAmount = product.getBaseAmount();
         double planFactor = discountCalculationService.calculatePlanFactor(planType);
         int planAdjustedBase = (int) (rawBaseAmount * planFactor);
-        int annualMileageKm = drivingQueryService.getAnnualDistanceKm(userId);
+        int annualMileageKm = drivingQueryService.getAnnualDistanceKm(userId, request.userVehicleId());
         double ageFactor = discountCalculationService.calculateAgeFactor(age);
         double experienceFactor = discountCalculationService.calculateExperienceFactor(experienceYears);
         int adjustedBase = (int) (planAdjustedBase * ageFactor * experienceFactor);

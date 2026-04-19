@@ -122,6 +122,7 @@ public class InsuranceContractController {
     public record CancelResponse(Long id, String status) {}
     public record CreateContractRequest(
             @NotNull Long insuranceProductId,
+            Long userVehicleId,
             @NotBlank String phoneNumber,
             @NotBlank String address,
             @NotNull @Min(1) Integer contractPeriod,
