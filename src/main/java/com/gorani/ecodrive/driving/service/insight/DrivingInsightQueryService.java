@@ -11,10 +11,11 @@ import java.math.RoundingMode;
 @RequiredArgsConstructor
 public class DrivingInsightQueryService {
 
+    private static final String KST_TODAY_SQL = "(now() at time zone 'Asia/Seoul')::date";
     private final JdbcTemplate jdbcTemplate;
 
     public DrivingInsightFeatures loadFeatures(Long userId, Long userVehicleId) {
-        return jdbcTemplate.query("""
+        return jdbcTemplate.query(("""
                         with session_metrics as (
                             select
                                 count(*) as session_count,
@@ -31,7 +32,7 @@ public class DrivingInsightQueryService {
                                     then 1 else 0 end), 0) as night_session_count
                             from driving_sessions s
                             where s.user_id = ?
-                              and s.session_date between current_date - interval '6 day' and current_date
+                              and s.session_date between %s - interval '6 day' and %s
                               and (cast(? as bigint) is null or s.user_vehicle_id = cast(? as bigint))
                         ),
                         event_metrics as (
@@ -42,7 +43,7 @@ public class DrivingInsightQueryService {
                             from driving_events e
                             join driving_sessions s on s.id = e.driving_session_id
                             where e.user_id = ?
-                              and s.session_date between current_date - interval '6 day' and current_date
+                              and s.session_date between %s - interval '6 day' and %s
                               and (cast(? as bigint) is null or s.user_vehicle_id = cast(? as bigint))
                         )
                         select
@@ -58,7 +59,7 @@ public class DrivingInsightQueryService {
                             em.overspeed_count
                         from session_metrics sm
                         cross join event_metrics em
-                        """,
+                        """).formatted(KST_TODAY_SQL, KST_TODAY_SQL, KST_TODAY_SQL, KST_TODAY_SQL),
                 rs -> {
                     if (!rs.next()) {
                         return empty();
@@ -74,10 +75,11 @@ public class DrivingInsightQueryService {
                     int overspeedCount = rs.getInt("overspeed_count");
 
                     double distance = distanceKm == null ? 0.0 : distanceKm.doubleValue();
-                    double distanceBase = distance <= 0 ? 100.0 : distance;
                     double overspeedEventRatio = sessionCount == 0 ? 0.0 : clampRatio((double) overspeedCount / sessionCount);
                     double idlingRatio = drivingMinutes == 0 ? 0.0 : clampRatio((double) idlingMinutes / drivingMinutes);
                     double nightDrivingRatio = sessionCount == 0 ? 0.0 : clampRatio((double) nightSessionCount / sessionCount);
+                    double hardAccelPer100km = distance <= 0 ? 0.0 : round((rapidAccelCount * 100.0) / distance);
+                    double hardBrakePer100km = distance <= 0 ? 0.0 : round((hardBrakeCount * 100.0) / distance);
 
                     return new DrivingInsightFeatures(
                             sessionCount,
@@ -85,8 +87,8 @@ public class DrivingInsightQueryService {
                             drivingMinutes,
                             rs.getDouble("average_speed"),
                             rs.getDouble("max_speed"),
-                            round((rapidAccelCount * 100.0) / distanceBase),
-                            round((hardBrakeCount * 100.0) / distanceBase),
+                            hardAccelPer100km,
+                            hardBrakePer100km,
                             round(overspeedEventRatio),
                             round(idlingRatio),
                             round(nightDrivingRatio)

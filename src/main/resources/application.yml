@@ -104,3 +104,4 @@ openai:
 driving-insight:
   version: ${DRIVING_INSIGHT_VERSION:insight-v1}
   max-daily-generations-per-user: ${DRIVING_INSIGHT_MAX_DAILY_GENERATIONS_PER_USER:3}
+  cache-max-entries: ${DRIVING_INSIGHT_CACHE_MAX_ENTRIES:500}

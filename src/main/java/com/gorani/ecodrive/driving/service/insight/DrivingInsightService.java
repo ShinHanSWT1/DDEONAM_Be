@@ -30,15 +30,11 @@ public class DrivingInsightService {
         }
 
         String cacheKey = cache.key(userId, userVehicleId, features.fingerprint());
-        DrivingInsightResponse cached = cache.get(cacheKey);
-        if (cached != null) {
-            return cached;
-        }
-
-        DrivingInsightResponse response = generateResponse(userId, features, classification);
-
-        cache.put(cacheKey, response);
-        return response;
+        return cache.getOrLoad(
+                cacheKey,
+                () -> generateResponse(userId, features, classification),
+                response -> !response.fallbackUsed()
+        );
     }
 
     private DrivingInsightResponse generateResponse(
@@ -59,11 +55,13 @@ public class DrivingInsightService {
             DrivingInsightResponse response = openAiClient.generate(features, classification, promptFactory, version);
             if (isInvalidAiResponse(response)) {
                 log.warn("Driving insight AI response is invalid. styleCode={}", classification.style().code());
+                generationLimiter.release(userId);
                 return fallback(classification);
             }
             return response;
         } catch (RuntimeException exception) {
             log.warn("Driving insight AI generation failed. styleCode={}", classification.style().code(), exception);
+            generationLimiter.release(userId);
             return fallback(classification);
         }
     }

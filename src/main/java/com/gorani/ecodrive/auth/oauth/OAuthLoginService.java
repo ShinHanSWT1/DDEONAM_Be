@@ -49,6 +49,10 @@ public class OAuthLoginService {
             return oauthProfileImageUrl;
         }
 
+        if (oauthProfileImageUrl == null || oauthProfileImageUrl.isBlank()) {
+            return existingProfileImageUrl;
+        }
+
         String normalizedCdnUrl = cdnUrl.endsWith("/")
                 ? cdnUrl.substring(0, cdnUrl.length() - 1)
                 : cdnUrl;
