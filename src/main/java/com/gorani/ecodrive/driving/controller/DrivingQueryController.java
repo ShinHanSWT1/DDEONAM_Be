@@ -4,6 +4,8 @@ import com.gorani.ecodrive.common.response.ApiResponse;
 import com.gorani.ecodrive.common.security.CustomUserPrincipal;
 import com.gorani.ecodrive.driving.dto.query.DrivingBehaviorSummaryResponse;
 import com.gorani.ecodrive.driving.dto.query.DrivingDailySummaryResponse;
+import com.gorani.ecodrive.driving.dto.query.DrivingInsightRequest;
+import com.gorani.ecodrive.driving.dto.query.DrivingInsightResponse;
 import com.gorani.ecodrive.driving.dto.query.DrivingLatestCarbonResponse;
 import com.gorani.ecodrive.driving.dto.query.DrivingLatestScoreResponse;
 import com.gorani.ecodrive.driving.dto.query.DrivingMonthlySummaryResponse;
@@ -11,10 +13,13 @@ import com.gorani.ecodrive.driving.dto.query.DrivingRecentSessionResponse;
 import com.gorani.ecodrive.driving.dto.query.DrivingScoreHistoryResponse;
 import com.gorani.ecodrive.driving.dto.query.DrivingScoreTrendResponse;
 import com.gorani.ecodrive.driving.dto.query.DrivingWeeklySummaryResponse;
+import com.gorani.ecodrive.driving.service.insight.DrivingInsightService;
 import com.gorani.ecodrive.driving.service.query.DrivingQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,6 +36,7 @@ public class DrivingQueryController {
     private static final int MAX_SCORE_HISTORY_LIMIT = 20;
 
     private final DrivingQueryService drivingQueryService;
+    private final DrivingInsightService drivingInsightService;
 
     @GetMapping("/scores/latest")
     public ApiResponse<DrivingLatestScoreResponse> getLatestScore(
@@ -169,6 +175,20 @@ public class DrivingQueryController {
                         principal.getUserId(),
                         userVehicleId,
                         Math.max(1, Math.min(limit, MAX_SCORE_HISTORY_LIMIT))
+                )
+        );
+    }
+
+    @PostMapping("/insight")
+    public ApiResponse<DrivingInsightResponse> generateInsight(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestBody(required = false) DrivingInsightRequest request
+    ) {
+        return ApiResponse.success(
+                "주행 스타일 인사이트 생성 성공",
+                drivingInsightService.generate(
+                        principal.getUserId(),
+                        request == null ? null : request.userVehicleId()
                 )
         );
     }
