@@ -71,6 +71,10 @@ logging:
 app:
   frontend-url: ${FRONTEND_URL}
   cdn-url: https://${AWS_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com
+  pay:
+    merchant-code: ${PAY_MERCHANT_CODE:ECODRIVE}
+    checkout:
+      integration-type: ${PAY_CHECKOUT_INTEGRATION_TYPE:INTERNAL_TOKEN}
   driving-dummy:
     base-dir: ${DRIVING_DUMMY_BASE_DIR:generated/driving}
     generation-cron: ${DRIVING_DUMMY_GENERATION_CRON:0 0 * * * *}

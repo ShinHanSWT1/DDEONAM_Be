@@ -151,8 +151,8 @@ public class GoraniPayClient {
     }
 
     public PayCheckoutSessionPayload createCheckoutSession(CreateCheckoutSessionPayload request) {
-        log.info("gorani_pay checkout session 생성 호출. merchantCode={}, payUserId={}, amount={}, externalOrderId={}",
-                request.merchantCode(), request.payUserId(), request.amount(), request.externalOrderId());
+        log.info("gorani_pay checkout session 생성 호출. merchantCode={}, amount={}, externalOrderId={}",
+                request.merchantCode(), request.amount(), request.externalOrderId());
         PayCheckoutSessionPayload response = restTemplate.postForObject(
                 "/checkout/sessions",
                 new HttpEntity<>(request, headers()),
@@ -227,7 +227,7 @@ public class GoraniPayClient {
 
     public record CreateCheckoutSessionPayload(
             String merchantCode,
-            Long payUserId,
+            String merchantUserKey,
             String externalOrderId,
             String title,
             Integer amount,
@@ -237,7 +237,8 @@ public class GoraniPayClient {
             String successUrl,
             String failUrl,
             String entryMode,
-            String channel
+            String channel,
+            String integrationType
     ) {
     }
 

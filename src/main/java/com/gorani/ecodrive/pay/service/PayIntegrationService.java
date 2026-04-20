@@ -21,6 +21,7 @@ import com.gorani.ecodrive.user.domain.User;
 import com.gorani.ecodrive.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -45,6 +46,10 @@ public class PayIntegrationService {
     private final GoraniPayClient goraniPayClient;
     private final UserService userService;
     private final PayChargeAttemptService payChargeAttemptService;
+    @Value("${app.pay.merchant-code:ECODRIVE}")
+    private String merchantCode;
+    @Value("${app.pay.checkout.integration-type:INTERNAL_TOKEN}")
+    private String checkoutIntegrationType;
 
     public PayWalletResponse getWallet(Long userId) {
         log.info("Pay 지갑 조회 시작. userId={}", userId);
@@ -218,7 +223,7 @@ public class PayIntegrationService {
                 userId, request.title(), request.amount(), request.pointAmount(), request.couponDiscountAmount());
 
         // EcoDrive 사용자 -> Pay 사용자 매핑 및 지갑 유효성 검증
-        PayWalletResponse wallet = getWallet(userId);
+        getWallet(userId);
         String externalOrderId = StringUtils.hasText(request.externalOrderId())
                 ? request.externalOrderId()
                 : buildExternalOrderId(userId);
@@ -226,8 +231,8 @@ public class PayIntegrationService {
         // 실제 결제는 Pay Hosted Checkout에서 수행하므로 BE는 세션 발급만 위임
         GoraniPayClient.PayCheckoutSessionPayload payload = goraniPayClient.createCheckoutSession(
                 new GoraniPayClient.CreateCheckoutSessionPayload(
-                        "ECODRIVE",
-                        wallet.payUserId(),
+                        merchantCode,
+                        String.valueOf(userId),
                         externalOrderId,
                         request.title(),
                         request.amount(),
@@ -237,7 +242,8 @@ public class PayIntegrationService {
                         request.successUrl(),
                         request.failUrl(),
                         request.entryMode(),
-                        request.channel()
+                        request.channel(),
+                        checkoutIntegrationType
                 )
         );
 
