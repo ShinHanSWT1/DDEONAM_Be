@@ -53,4 +53,9 @@ public class CouponUseToken {
         this.status = "EXPIRED";
         this.usedAt = now;
     }
+
+    public void markUsed(LocalDateTime now) {
+        this.status = "USED";
+        this.usedAt = now;
+    }
 }

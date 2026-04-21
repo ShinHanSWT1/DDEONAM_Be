@@ -12,6 +12,8 @@ import com.gorani.ecodrive.coupon.dto.CouponPurchaseRequest;
 import com.gorani.ecodrive.coupon.dto.CouponPurchaseResponse;
 import com.gorani.ecodrive.coupon.dto.CouponTemplateResponse;
 import com.gorani.ecodrive.coupon.dto.CouponUseTokenResponse;
+import com.gorani.ecodrive.coupon.dto.InternalCouponConsumeResponse;
+import com.gorani.ecodrive.coupon.dto.InternalCouponPreviewResponse;
 import com.gorani.ecodrive.coupon.dto.UserCouponResponse;
 import com.gorani.ecodrive.coupon.repository.CouponCheckoutAttemptRepository;
 import com.gorani.ecodrive.coupon.repository.CouponTemplateRepository;
@@ -241,6 +243,47 @@ public class CouponService {
         return new CouponUseTokenResponse(userCouponId, oneTimeCode, qrPayload, expiresAt);
     }
 
+    public InternalCouponPreviewResponse previewUseToken(String rawTokenCode, String merchantCode, String externalOrderId) {
+        CouponUseToken token = getValidIssuedToken(rawTokenCode);
+        UserCoupon userCoupon = token.getUserCoupon();
+        validateAvailableCoupon(userCoupon);
+
+        int discountAmount = resolveCouponPrice(userCoupon.getCouponTemplate());
+        log.info("내부 쿠폰 토큰 검증 완료. merchantCode={}, externalOrderId={}, userCouponId={}, oneTimeCode={}",
+                merchantCode, externalOrderId, userCoupon.getId(), token.getOneTimeCode());
+
+        return new InternalCouponPreviewResponse(
+                token.getOneTimeCode(),
+                userCoupon.getId(),
+                userCoupon.getCouponTemplate().getName(),
+                discountAmount,
+                token.getExpiresAt()
+        );
+    }
+
+    @Transactional
+    public InternalCouponConsumeResponse consumeUseToken(String rawTokenCode, String merchantCode, String externalOrderId) {
+        CouponUseToken token = getValidIssuedToken(rawTokenCode);
+        UserCoupon userCoupon = token.getUserCoupon();
+        validateAvailableCoupon(userCoupon);
+
+        LocalDateTime now = LocalDateTime.now();
+        token.markUsed(now);
+        userCoupon.markUsed(now, null);
+
+        int discountAmount = resolveCouponPrice(userCoupon.getCouponTemplate());
+        log.info("내부 쿠폰 토큰 사용 완료. merchantCode={}, externalOrderId={}, userCouponId={}, oneTimeCode={}",
+                merchantCode, externalOrderId, userCoupon.getId(), token.getOneTimeCode());
+
+        return new InternalCouponConsumeResponse(
+                token.getOneTimeCode(),
+                userCoupon.getId(),
+                userCoupon.getCouponTemplate().getName(),
+                discountAmount,
+                now
+        );
+    }
+
     private CouponTemplate getActiveTemplateEntity(Long templateId) {
         return couponTemplateRepository.findByIdAndStatus(templateId, ACTIVE)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "쿠폰 템플릿을 찾을 수 없습니다."));
@@ -256,6 +299,41 @@ public class CouponService {
             return 3000;
         }
         return Integer.parseInt(onlyDigits);
+    }
+
+    private CouponUseToken getValidIssuedToken(String rawTokenCode) {
+        if (rawTokenCode == null || rawTokenCode.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "쿠폰 토큰 누락");
+        }
+
+        String oneTimeCode = normalizeOneTimeCode(rawTokenCode);
+        CouponUseToken token = couponUseTokenRepository.findByOneTimeCode(oneTimeCode)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "유효하지 않은 쿠폰 코드"));
+
+        if (!"ISSUED".equalsIgnoreCase(token.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "사용 가능한 쿠폰 토큰 상태 아님");
+        }
+        if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "만료된 쿠폰 토큰");
+        }
+        return token;
+    }
+
+    private void validateAvailableCoupon(UserCoupon userCoupon) {
+        if (!"AVAILABLE".equalsIgnoreCase(userCoupon.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "사용 가능한 쿠폰 상태가 아닙니다.");
+        }
+        if (userCoupon.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "만료된 쿠폰입니다.");
+        }
+    }
+
+    private String normalizeOneTimeCode(String rawTokenCode) {
+        String trimmed = rawTokenCode.trim();
+        if (trimmed.startsWith("GORANI-COUPON:")) {
+            return trimmed.substring("GORANI-COUPON:".length()).trim();
+        }
+        return trimmed;
     }
 
     private int resolvePointAmount(Integer pointAmount, int amount) {

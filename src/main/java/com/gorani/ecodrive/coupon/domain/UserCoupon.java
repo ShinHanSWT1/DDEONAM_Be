@@ -59,4 +59,10 @@ public class UserCoupon {
         coupon.createdAt = now;
         return coupon;
     }
+
+    public void markUsed(LocalDateTime now, Long paymentId) {
+        this.status = "USED";
+        this.usedAt = now;
+        this.usedPaymentId = paymentId;
+    }
 }
