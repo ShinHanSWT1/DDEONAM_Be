@@ -3,12 +3,6 @@ spring:
     activate:
       on-profile: dev
 
-  datasource:
-    driver-class-name: org.postgresql.Driver
-    url:  ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
-
   servlet:
     multipart:
       enabled: true
@@ -16,6 +10,12 @@ spring:
       max-request-size: 30MB
       location: /app/uploads
 
+  security:
+    oauth2:
+      client:
+        registration:
+          kakao:
+            redirect-uri: "https://dev-gorani.lab.terminal-lab.kr/api/login/oauth2/code/kakao"
   jpa:
     hibernate:
       ddl-auto: validate
@@ -23,9 +23,22 @@ spring:
 
 #  data:
 #    redis:
-#      host: dev-redis
+#      host: localhost
 #      port: 6379
 
 app:
   upload:
     path: /app/uploads
+#  frontend-url: https://dev-gorani.lab.terminal-lab.kr/
+  driving-dummy:
+    base-dir: ${DRIVING_DUMMY_BASE_DIR:/app/generated/driving}
+    generation-cron: ${DRIVING_DUMMY_GENERATION_CRON:0 0 * * * *}
+    generation-enabled: ${DRIVING_DUMMY_GENERATION_ENABLED:true}
+    python-command: ${DRIVING_DUMMY_PYTHON_COMMAND:python3}
+    script-path: ${DRIVING_DUMMY_SCRIPT_PATH:/app/scripts/generate_driving_dummy_json.py}
+    default-sessions-per-user: ${DRIVING_DUMMY_DEFAULT_SESSIONS_PER_USER:2}
+    extra-session-probability: ${DRIVING_DUMMY_EXTRA_SESSION_PROBABILITY:0.2}
+    target-users: ${DRIVING_DUMMY_TARGET_USERS:1:1}
+  pay:
+    base-url: https://dev-gorani.lab.terminal-lab.kr/pay
+    internal-token: ${PAY_INTERNAL_TOKEN}

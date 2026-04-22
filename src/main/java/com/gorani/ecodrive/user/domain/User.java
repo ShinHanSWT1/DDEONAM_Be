@@ -1,5 +1,6 @@
 package com.gorani.ecodrive.user.domain;
 
+import com.gorani.ecodrive.common.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -10,31 +11,40 @@ import lombok.NoArgsConstructor;
 @Table(name = "users")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class User {
+public class User extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "provider", nullable = false, length = 20)
     private OAuthProvider oauthProvider;
 
-    @Column(nullable = false, length = 100)
+    @Column(name = "provider_user_id", nullable = false, length = 100)
     private String oauthId;
 
-    @Column(length = 100)
+    @Column(name = "email", length = 100)
     private String email;
 
-    @Column(nullable = false, length = 50)
+    @Column(name = "nickname", nullable = false, length = 50)
     private String nickname;
 
-    @Column(length = 500)
+    @Column(name = "profile_image_url", length = 500)
     private String profileImageUrl;
 
+    @Column(name = "is_onboarding_completed", nullable = false)
+    private boolean isOnboardingCompleted;
+
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "role", nullable = false, length = 20)
     private UserRole role;
+
+    @Column(name = "age")
+    private Integer age;
+
+    @Column(name = "representative_user_vehicle_id")
+    private Long representativeUserVehicleId;
 
     @Builder
     public User(
@@ -43,6 +53,7 @@ public class User {
             String email,
             String nickname,
             String profileImageUrl,
+            boolean isOnboardingCompleted,
             UserRole role
     ) {
         this.oauthProvider = oauthProvider;
@@ -50,6 +61,7 @@ public class User {
         this.email = email;
         this.nickname = nickname;
         this.profileImageUrl = profileImageUrl;
+        this.isOnboardingCompleted = isOnboardingCompleted;
         this.role = role;
     }
 
@@ -57,5 +69,17 @@ public class User {
         this.email = email;
         this.nickname = nickname;
         this.profileImageUrl = profileImageUrl;
+    }
+
+    public void updateOnboardingCompleted(boolean isOnboardingCompleted) {
+        this.isOnboardingCompleted = isOnboardingCompleted;
+    }
+
+    public void updateAge(Integer age) {
+        this.age = age;
+    }
+
+    public void updateRepresentativeUserVehicleId(Long representativeUserVehicleId) {
+        this.representativeUserVehicleId = representativeUserVehicleId;
     }
 }

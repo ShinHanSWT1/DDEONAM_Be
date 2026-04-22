@@ -1,0 +1,72 @@
+package com.gorani.ecodrive.insurance.domain;
+
+import com.gorani.ecodrive.user.domain.User;
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "user_insurances")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class UserInsurance {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    // DB 레벨에서 user_vehicles(id)에 FK 제약이 걸려 있음 (V1__init.sql 참고)
+    // 모듈 경계 유지를 위해 @ManyToOne 대신 Long으로 관리
+    @Column(name = "user_vehicle_id", nullable = false)
+    private Long userVehicleId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "insurance_company_id", nullable = false)
+    private InsuranceCompany insuranceCompany;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "insurance_product_id")
+    private InsuranceProduct insuranceProduct;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "insurance_contracts_id", nullable = false)
+    private InsuranceContract insuranceContract;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private UserInsuranceStatus status;
+
+    @Column(name = "ended_at")
+    private LocalDateTime endedAt;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Builder
+    public UserInsurance(User user, Long userVehicleId, InsuranceCompany insuranceCompany,
+                         InsuranceProduct insuranceProduct, InsuranceContract insuranceContract,
+                         UserInsuranceStatus status, LocalDateTime endedAt,
+                         LocalDateTime createdAt) {
+        this.user = user;
+        this.userVehicleId = userVehicleId;
+        this.insuranceCompany = insuranceCompany;
+        this.insuranceProduct = insuranceProduct;
+        this.insuranceContract = insuranceContract;
+        this.status = status;
+        this.endedAt = endedAt;
+        this.createdAt = createdAt;
+    }
+
+    public void deactivate(LocalDateTime endedAt) {
+        this.status = UserInsuranceStatus.INACTIVE;
+        this.endedAt = endedAt;
+    }
+}
