@@ -52,7 +52,8 @@ public class SecurityConfig {
                     CorsConfiguration config = new CorsConfiguration();
                     config.setAllowedOrigins(List.of(
                             "http://localhost:3000",
-                            "https://dev-gorani.lab.terminal-lab.kr"
+                            "https://dev-gorani.lab.terminal-lab.kr",
+                            "https://eri.gorani.shinhanacademy.co.kr"
                     ));
                     config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
                     config.setAllowedHeaders(List.of("*"));
